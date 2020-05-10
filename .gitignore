@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+slurm-*
+core
+run_*
+logs/*
+# IPython Notebook
+.ipynb_checkpoints
+
+.vscode*
+# weights
+weights/
+
+#DS_Store
+.DS_Store
+# pycharm
+.idea/
+__pycache__/
+
