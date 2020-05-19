@@ -80,8 +80,9 @@ def make_lists(rootpath, imgtype='rgb-images', fulltest=False):
                 maxnum = 1
                 all_boxes = []
                 all_labels = []
-                
-                for idx, anno in enumerate(frame['annos']):
+                frame_annos = frame['annos']
+                for idx, key in enumerate(frame_annos.keys()):
+                    anno = frame_annos[key]
                     box = anno['box']
                     
                     assert box[0]<box[2] and box[1]<box[3], box
