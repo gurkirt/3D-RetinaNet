@@ -79,9 +79,9 @@ def match_anchors_wIgnore(gt_boxes, gt_labels, anchors, pos_th=0.5, nge_th=0.4, 
     # pdb.set_trace()
     best_anchor_overlap, best_anchor_idx = overlaps.max(1, keepdim=True)
 
-    if best_anchor_overlap.min().item()<0.25:
-        print('MIN VAL::',best_anchor_overlap.min().item())
-        print('lower than o.5', best_anchor_overlap, gt_boxes)
+    # if best_anchor_overlap.min().item()<0.25:
+    #     print('MIN VAL::',best_anchor_overlap.min().item())
+    #     print('lower than o.5', best_anchor_overlap, gt_boxes)
     # [1,num_anchors] best ground truth for each anchor
     best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True)
     best_truth_idx.squeeze_(0)

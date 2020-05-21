@@ -23,10 +23,19 @@ def smooth_l1_loss(input, target, beta=1. / 9, reduction='sum'):
 
 
 def sigmoid_focal_loss(preds, labels, num_pos, alpha, gamma):
-    alpha_factor = alpha * labels + (1 - alpha) * (1 - labels)
-    focal_weight = (1.0 - preds) * labels + preds * (1 - labels)
-    focal_weight = alpha_factor * (focal_weight ** gamma)
+    '''Args::
+        preds: sigmoid activated predictions
+        labels: one hot encoded labels
+        num_pos: number of positve samples
+        alpha: weighting factor to baclence +ve and -ve
+        gamma: Exponent factor to baclence easy and hard examples
+       Return::
+        loss: computed loss and reduced by sum and normlised by num_pos
+     '''
     loss = F.binary_cross_entropy(preds, labels, reduction='none')
+    alpha_factor = alpha * labels + (1.0 - alpha) * (1.0 - labels)
+    pt = preds * labels + (1.0 - preds) * (1.0 - labels)
+    focal_weight = alpha_factor * ((1-pt) ** gamma)
     loss = (loss * focal_weight).sum() / num_pos
     return loss
 
@@ -36,11 +45,11 @@ def one_hot_labels(tgt_labels, nlt, numc):
     # tgt_labels = tgt_labels.squeeze(1)
     # print(tgt_labels.shape[0] + 1, numc)
     labels = tgt_labels.new_zeros(tgt_labels.shape[0] + 1, numc)
-    if nlt == 3:
-        present = [0]
-    else:
-        present = [1]
-    
+    # if nlt == 4:
+    #     present = [0]
+    # else:
+    # present = [1]
+    # print(tgt_labels.shape)
     for n in range(tgt_labels.shape[0]):
         c = 0
         for t in range(tgt_labels.shape[1]):
@@ -50,10 +59,10 @@ def one_hot_labels(tgt_labels, nlt, numc):
             else:
                 break
         
-        present.append(c)
-
+        # present.append(c)
+    # print(present)
     
-    return labels, torch.cuda.ByteTensor(present, device=tgt_labels.device)
+    return labels #, torch.cuda.ByteTensor(present, device=tgt_labels.device)
 
 
 class FocalLoss(nn.Module):
@@ -67,16 +76,18 @@ class FocalLoss(nn.Module):
         self.negative_threshold = args.negative_threshold
         self.num_agents = args.num_agents
         self.num_actions = args.num_actions
-        self.num_agtacts = args.num_agtacts
+        self.num_duplexes = args.num_duplexes
+        self.num_triplets = args.num_triplets
         self.num_locations = args.num_locations
-        self.num_classes_list = args.num_classes_list 
+        # # self.num_classes_list = args.num_classes_list 
         self.nlts = args.nlts
+        self.num_classes_list = args.num_classes_list
         # self.bce_loss = nn.BCELoss(reduction='sum').cuda()
         self.alpha = 0.25
         self.gamma = 2.0
 
 
-    def forward(self, confidence, predicted_locations, gts, gt_labels, counts, anchors, img_index):
+    def forward(self, confidence, predicted_locations, gt_boxes, gt_labels, counts, anchors, img_index):
         ## gt_boxes, gt_labels, counts, ancohor_boxes
         
         """
@@ -97,14 +108,15 @@ class FocalLoss(nn.Module):
         cc += self.num_agents
         action_preds = confidence[:,:,cc:cc+self.num_actions]
         cc += self.num_actions
-        agtact_preds = confidence[:,:,cc:cc+self.num_agtacts]
-        cc += self.num_agtacts
+        duplex_preds = confidence[:,:,cc:cc+self.num_duplexes]
+        cc += self.num_duplexes
+        triplet_preds = confidence[:,:,cc:cc+self.num_triplets]
+        cc += self.num_triplets
         location_preds = confidence[:,:,cc:cc+self.num_locations]
 
-        binary_preds = confidence[:,:, 0]
-        object_preds = confidence[:,:,1:]
-        num_classes = object_preds.size(2)
-        N = float(len(gts))
+        # binary_preds = confidence[:,:, 0]
+        # rest_preds = confidence[:,:,1:]
+        # num_classes = confidence.size(2)-1
         
         gt_locations = []
         labels = []
@@ -112,22 +124,24 @@ class FocalLoss(nn.Module):
 
         nlts = self.nlts
         # gt_labels = gt_labels
+        # all_labels = [[] for _ rnage(self.nlts)]
         all_labels_agents = []
-        all_labels_locations = []
         all_labels_actions = []
-        all_labels_agtactions = []
-        position_present = []
+        all_labels_duplexes = []
+        all_labels_triplets = []
+        all_labels_locations = []
+        # position_present = []
         
         with torch.no_grad():
             # torch.cuda.synchronize()
             # t0 = time.perf_counter()
             # pdb.set_trace()
-            for b in range(len(gts)):
-                gt_boxes = gts[b, :counts[b], :]
+            for b in range(gt_boxes.shape[0]):
+                gt_boxes_batch = gt_boxes[b, :counts[b], :]
                 # print(gt_boxes.shape, counts[b])
                 gt_labels_batch = torch.cuda.LongTensor([i for i in range(counts[b])])
                 # gt_labels = gt_labels.type(torch.cuda.LongTensor)
-                conf, loc = box_utils.match_anchors_wIgnore(gt_boxes, gt_labels_batch, 
+                conf, loc = box_utils.match_anchors_wIgnore(gt_boxes_batch, gt_labels_batch, 
                     anchors, pos_th=self.positive_threshold, nge_th=self.negative_threshold )
                 gt_locations.append(loc)
                 labels_bin.append(conf)
@@ -136,21 +150,23 @@ class FocalLoss(nn.Module):
                 dumy_conf[dumy_conf<0] = 0
                 batch_labels = []
                 for nlt in range(nlts):
-                    labels, present = one_hot_labels(gt_labels[b,:counts[b], nlt, :], nlt, self.num_classes_list[nlt])
+                    labels = one_hot_labels(gt_labels[b,:counts[b], nlt, :], nlt, self.num_classes_list[nlt])
                     # pdb.set_trace()
                     batch_labels.append(labels[dumy_conf,:])
-                    if nlt == 3: ## position 
-                        position_present.append(present[dumy_conf])
+                    # if nlt == 3: ## position 
+                    #     position_present.append(present[dumy_conf])
                 
                 all_labels_agents.append(batch_labels[0])
                 all_labels_actions.append(batch_labels[1])
-                all_labels_agtactions.append(batch_labels[2])
-                all_labels_locations.append(batch_labels[3])
+                all_labels_duplexes.append(batch_labels[2])
+                all_labels_triplets.append(batch_labels[3])
+                all_labels_locations.append(batch_labels[4])
             
-            position_present = torch.stack(position_present, 0)
+            # position_present = torch.stack(position_present, 0)
             all_labels_agents = torch.stack(all_labels_agents, 0).float()
             all_labels_actions = torch.stack(all_labels_actions, 0).float()
-            all_labels_agtactions = torch.stack(all_labels_agtactions, 0).float()
+            all_labels_duplexes = torch.stack(all_labels_duplexes, 0).float()
+            all_labels_triplets = torch.stack(all_labels_triplets, 0).float()
             all_labels_locations = torch.stack(all_labels_locations, 0).float()
             gt_locations = torch.stack(gt_locations, 0)
             labels_bin = torch.stack(labels_bin, 0).float()
@@ -164,40 +180,30 @@ class FocalLoss(nn.Module):
         
         mask = labels_bin > -1 # Get mask to remove ignore examples
         # agent_loss
-        object_preds = agent_preds[mask].reshape(-1, self.num_agents) # Remove Ignore preds
+        preds = agent_preds[mask].reshape(-1, self.num_agents) # Remove Ignore preds
         labels = all_labels_agents[mask].reshape(-1, self.num_agents) # Remove Ignore labels
-        agent_loss = sigmoid_focal_loss(object_preds, labels, num_pos, self.alpha, self.gamma)
+        agent_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
         
-        # alpha = self.alpha; gamma=self.gamma; alpha_factor = alpha * labels + (1 - alpha) * (1 - labels)
-        # focal_weight = (1.0 - object_preds) * labels + object_preds * (1 - labels)
-        # focal_weight = alpha_factor * (focal_weight ** gamma)
-        # loss = F.binary_cross_entropy(object_preds, labels, reduction='none')
-        # loss = (loss * focal_weight).sum() / num_pos
-        # return loss
-        # if agent_loss.item()>2.4:
-        #     print(img_index, regression_loss.item(), agent_loss.item())
-        #     pdb.set_trace()
-        object_preds = action_preds[mask].reshape(-1, self.num_actions) # Remove Ignore preds
+        preds = action_preds[mask].reshape(-1, self.num_actions) # Remove Ignore preds
         labels = all_labels_actions[mask].reshape(-1, self.num_actions) # Remove Ignore labels
-        action_loss = sigmoid_focal_loss(object_preds, labels, num_pos, self.alpha, self.gamma)
+        action_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
 
-        object_preds = agtact_preds[mask].reshape(-1, self.num_agtacts) # Remove Ignore preds
-        labels = all_labels_agtactions[mask].reshape(-1, self.num_agtacts) # Remove Ignore labels
-        agtaction_loss = sigmoid_focal_loss(object_preds, labels, num_pos, self.alpha, self.gamma)
+        preds = duplex_preds[mask].reshape(-1, self.num_duplexes) # Remove Ignore preds
+        labels = all_labels_duplexes[mask].reshape(-1, self.num_duplexes) # Remove Ignore labels
+        duplex_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
         
-        object_preds = binary_preds[mask] # Remove Ignore preds
+        preds = triplet_preds[mask].reshape(-1, self.num_triplets) # Remove Ignore preds
+        labels = all_labels_triplets[mask].reshape(-1, self.num_triplets) # Remove Ignore labels
+        triplet_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
+
+        preds = location_preds[mask].reshape(-1, self.num_locations) # Remove Ignore preds
+        labels = all_labels_locations[mask].reshape(-1, self.num_locations) # Remove Ignore labels
+        location_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
+
+        preds = binary_preds[mask] # Remove Ignore preds
         labels_bin[labels_bin>0] = 1
         labels = labels_bin[mask] # Remove Ignore labels
-        binary_loss = sigmoid_focal_loss(object_preds, labels, num_pos, self.alpha, self.gamma)
-
-        mask = position_present> 0
-        num_pos = max(1.0, float(mask.sum()))
-        # pdb.set_trace()
-        object_preds = location_preds[mask].reshape(-1, self.num_locations) # Remove Ignore preds
-        labels = all_labels_locations[mask].reshape(-1, self.num_locations) # Remove Ignore labels
+        binary_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
         
-        location_loss = sigmoid_focal_loss(object_preds, labels, num_pos, self.alpha, self.gamma)
-
-        # print(img_index, regression_loss.item(), agent_loss.item(), action_loss.item(), agtaction_loss.item(), location_loss.item())
-
-        return regression_loss, location_loss + binary_loss + agtaction_loss + action_loss + agent_loss
+        # print(num_pos, location_loss.item(), triplet_loss.item(), duplex_loss.item(), action_loss.item(), agent_loss.item())
+        return regression_loss, binary_loss + location_loss + triplet_loss + duplex_loss + action_loss + agent_loss

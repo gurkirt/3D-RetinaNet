@@ -23,27 +23,54 @@ def resize(image, size):
     image = F.interpolate(image.unsqueeze(0), size=size, mode="nearest").squeeze(0)
     return image
 
+def filter_labels(ids, all_labels, used_labels):
+    """Filter the used ids"""
+    used_ids = []
+    for id in ids:
+        # print(id)
+        label = all_labels[id]
+        if label in used_labels:
+            # print(label)
+            used_ids.append(used_labels.index(label))
+    
+    return used_ids
 
-def make_lists(rootpath, imgtype='rgb-images', fulltest=False):
+def is_part_of_subsets(split_ids, subsets):
+    
+    is_it = False:
+    for subset in subsets:
+        is subset not in split_ids:
+            is_it = False
+    
+    return is_it
+
+def make_lists(rootpath, imgtype='rgb-images', subsets=['train_3'], skip_step=1, fulltest=False):
 
     imagesDir = rootpath + imgtype + '/'
-    trainlist = []
-    testlist = []
+    idlist = []
 
     testvideos = ['2014-06-26-09-31-18_stereo_centre_02']
     
 
-    with open(rootpath + 'read_annots_v1.0.json','r') as fff:
+    with open(rootpath + 'annots_12fps_v1.0.json','r') as fff:
         final_annots = json.load(fff)
+    
     database = final_annots['db']
     agent_labels = final_annots['agent_labels']
-    agent_action_labels = final_annots['agent_action_labels']
+    all_duplex_labels = final_annots['all_duplex_labels']
+    all_triplet_labels = final_annots['all_triplet_labels']
+    duplex_labels = final_annots['duplex_labels']
+    triplet_labels = final_annots['triplet_labels']
     action_labels = final_annots['action_labels']
     loc_labels = final_annots['loc_labels']
-    num_label_type = 4
+    num_label_type = 5
+    
 
-    train_counts = np.zeros((len(agent_action_labels), 4), dtype=np.int32)
-    test_counts = np.zeros((len(agent_action_labels), 4), dtype=np.int32)
+    print('Len of duplex labels : all :: ', len(duplex_labels), ':', len(all_duplex_labels))
+    print('Len of triplet labels : all :: ', len(triplet_labels), ':', len(all_triplet_labels))
+    print('IDS to use', duplex_labels)
+    train_counts = np.zeros((len(triplet_labels), num_label_type), dtype=np.int32)
+    test_counts = np.zeros((len(triplet_labels), num_label_type), dtype=np.int32)
 
     video_list = []
     frames_counted = 0
@@ -53,30 +80,37 @@ def make_lists(rootpath, imgtype='rgb-images', fulltest=False):
         numf = database[videoname]['numf']
         lastf = numf
 
-        istrain = True
-        if videoname in testvideos:
-            istrain = False
+        
+        if not is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
+            continue
 
+        istrain = False
+        split_name = 'train_'+str(split_id)
+        # print(split_name, final_annots['db'][videoname]['split_ids'])
+        if split_name in final_annots['db'][videoname]['split_ids']:
+            istrain = True
+            
         frames = database[videoname]['frames']
 
-        frame_ids = [f for f in frames.keys()]
-        ua
+        frame_nums = [int(f) for f in frames.keys()]
+    
         if fulltest:
-            frame_ids = [str(f+1) for f in range(numf)]
+            frame_nums = [f+1 for f in range(numf)]
         
-        for frame_num in frame_ids: #loop from start to last possible frame which can make a legit sequence
-
-            if str(frame_num) in frames.keys() and frames[str(frame_num)]['annotated']>0 and len(frames[str(frame_num)]['annos'])>0:
+        for frame_num in sorted(frame_nums): #loop from start to last possible frame which can make a legit sequence
+            if frame_num % skip_step != 0:
+                continue
+            frame_id = str(frame_num)
+            if fulltes or (frame_id in frames.keys() and frames[frame_id]['annotated']>0 and len(frames[frame_id]['annos'])>0):
                 # print(frame_num)
                 frames_counted += 1
-                image_name = imagesDir + videoname+'/{:08d}.jpg'.format(int(frame_num))
-                assert os.path.isfile(image_name), 'Image does not exist'+image_name
-                frame = frames[str(frame_num)]
+                # image_name = imagesDir + videoname+'/{:08d}.jpg'.format(int(frame_num))
+                # assert os.path.isfile(image_name), 'Image does not exist'+image_name
+                if frame_id in frames:
+                    frame = frames[frame_id]
+                else:
+                    frame = {'annos':{}}
                 width, height = frame['width'], frame['height']
-                # img = Image.open(image_name).convert('RGB')
-                # orig_w, orig_h = img.size
-                # assert orig_w==1280 and orig_h == 960, (orig_w, orig_h)
-                # print(width, height)
                 maxnum = 1
                 all_boxes = []
                 all_labels = []
@@ -94,13 +128,15 @@ def make_lists(rootpath, imgtype='rgb-images', fulltest=False):
                         box[bi] = min(1,max(0,box[bi]))
                     
                     all_boxes.append(box)
-                
+                    triplet_ids = filter_labels(anno['triplet_ids'], all_triplet_labels, triplet_labels)
+                    duplex_ids = filter_labels(anno['duplex_ids'], all_duplex_labels, duplex_labels)
                     maxnum = max(maxnum, len(anno['action_ids']))
-                    maxnum = max(maxnum, len(anno['act_agt_ids']))
-                    maxnum = max(maxnum, len(anno['loc_label_ids']))
+                    maxnum = max(maxnum, len(duplex_ids))
+                    maxnum = max(maxnum, len(triplet_ids))
+                    maxnum = max(maxnum, len(anno['loc_ids']))
                     
-                    all_labels.append([[anno['agent_id']], anno['action_ids'], 
-                                    anno['act_agt_ids'], anno['loc_label_ids']])
+                    all_labels.append([[anno['agent_ids']], anno['action_ids'], 
+                                    duplex_ids, triplet_ids, anno['loc_ids']])
 
                 for box_labels in all_labels:
                     for k, bls in enumerate(box_labels):
@@ -110,29 +146,22 @@ def make_lists(rootpath, imgtype='rgb-images', fulltest=False):
                                 train_counts[l, k] += 1
                             else:
                                 test_counts[l, k] += 1
-                if istrain:
-                    trainlist.append([vid, int(frame_num), all_labels, 
+                
+                idlist.append([vid, int(frame_num), all_labels, 
                                     np.asarray(all_boxes), [width, height], maxnum])
-                else:
-                    testlist.append([vid, int(frame_num), all_labels, 
-                                    np.asarray(all_boxes), [width, height], maxnum])
-                    
-            elif fulltest and not istrain: #if test video with no ground truth and fulltest is trues
-                testlist.append([vid, int(frame_num), 
-                [[-1] for _ in range(num_label_type)], np.zeros((1,4)), [width, height], 1])
-    
+                
     ptrstr = ''
-    types = ['agents', 'actions', 'loctaions', 'agent_actions']
-    for k, labels in enumerate([agent_labels, action_labels, agent_action_labels, loc_labels]):
+    types = ['agents', 'actions', 'duplexes', 'triplets', 'locations']
+    for k, labels in enumerate([agent_labels, action_labels, duplex_labels, triplet_labels, loc_labels]):
         for c, cls_ in enumerate(labels): # just to see the distribution of train and test sets
             ptrstr += 'train {:05d} test {:05d} label: ind={:02d} name:{:s}\n'.format(
                 train_counts[c,k], test_counts[c,k] , c, cls_)
 
-    ptrstr += 'Trainlistlen' + str(len(trainlist)) + ' testlist ' 
-    ptrstr += str(len(testlist)) + ' frames_counted ' + str(frames_counted)
+    ptrstr += 'idlistlen' + str(len(idlist)) 
+    ptrstr += ' frames_counted ' + str(frames_counted)
     
     # print(ptrstr)
-    list2r = [[trainlist, testlist, video_list, ptrstr, agent_labels], [action_labels, agent_action_labels, loc_labels, types]]
+    list2r = [[idlist, video_list, ptrstr, agent_labels], [action_labels, duplex_labels, triplet_labels, loc_labels, types]]
     return list2r
 
 
@@ -142,9 +171,11 @@ class Read(data.Dataset):
     """
 
     def __init__(self, args, train=True, input_type='rgb', transform=None, 
-                anno_transform=None, full_test=False):
+                anno_transform=None, skip_step=1, full_test=False):
 
         self.dataset = args.dataset
+
+        self.subsets, = args.subsets,
         # self.input_type = input_type
         self.input_type = input_type+'-images'
         self.train = train
@@ -154,19 +185,19 @@ class Read(data.Dataset):
         self.transform = transform
         self.anno_transform = anno_transform
         self.ids = list()
-        list4r = make_lists(self.root, self.input_type, fulltest=full_test)
-        trainlist, testlist, self.video_list, self.print_str, self.agents = list4r[0]
-        self.actions, self.agtacts, self.locations, self.label_types  = list4r[1]
+        list4r = make_lists(self.root, self.input_type, subsets=args.subsets, skip_step=skip_step, fulltest=full_test)
+        idlist, self.video_list, self.print_str, self.agents = list4r[0]
+        self.actions, self.duplexes, self.triplets, self.locations, self.label_types  = list4r[1]
         self.num_label_type = len(self.label_types)
-        if self.train:
-            self.ids = trainlist
-        else:
-            self.ids = testlist
+        
+        self.ids = idlist
         #print('spacify correct subset ')
+    
     
     def __len__(self):
         return len(self.ids)
 
+    
     def __getitem__(self, index):
         annot_info = self.ids[index]
         frame_num = annot_info[1]
@@ -192,13 +223,9 @@ class Read(data.Dataset):
                 bb[3] *= orig_h
                 # print(bb)
                 draw.rectangle([bb[0], bb[1], bb[2], bb[3]], fill=None, outline="red")
-            
-            # del draw
-            # img1.show()
+
             img.convert('RGB').save('images/{:s}-{:08d}.jpg'.format(videoname, frame_num))
         
-            
-            # pdb.set_trace()
         
         # print(img.size, wh)
         img1 = self.transform(img)
@@ -216,7 +243,7 @@ class Read(data.Dataset):
         boxes[:, 3] *= height # height y2
 
         # print(wh)
-        print(index, 'images/{:s}-{:08d}.jpg'.format(videoname, frame_num), wh, boxes, boxes1)
+        # print(index, 'images/{:s}/{:08d}.jpg'.format(videoname, frame_num), wh, boxes, boxes1)
         return img1, boxes, labels, index, wh, self.num_label_type, maxnum
 
 def custum_collate(batch):

@@ -3,16 +3,8 @@ import shutil
 import socket
 import getpass
 import numpy as np
-def str2bool(v):
-    return v.lower() in ("yes", "true", "t", "1")
-    
-def get_class_names(dataset):
-    classes = {
-        'coco':['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'],
-        'voc':['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor'],
-    }
-    return classes[dataset]
-    
+from modules.box_utils import nms
+
 def copy_source(source_dir):
     if not os.path.isdir(source_dir):
         os.system('mkdir -p ' + source_dir)
@@ -22,23 +14,28 @@ def copy_source(source_dir):
             if file.endswith('.py'): #fnmatch.filter(files, filepattern):
                 shutil.copy2(os.path.join(dirpath, file), source_dir)
 
-def set_args(args, iftest='train'):
+def set_args(args):
 
-    if iftest == 'test':
-        args.eval_iters = [int(val) for val in args.eval_iters.split(',')]
-    else:
-        args.milestones = [int(val) for val in args.milestones.split(',')]
-        args.gammas = [float(val) for val in args.gammas.split(',')]
+    args.milestones = [int(val) for val in args.milestones.split(',')]
+    args.gammas = [float(val) for val in args.gammas.split(',')]
+    args.eval_iters = [int(val) for val in args.eval_iters.split(',')]
+
+    args.train_subsets = [val for val in args.train_subsets.split(',')]
+    args.val_subsets = [val for val in args.val_subsets.split(',')]
+    args.test_subsets = [val for val in args.test_subsets.split(',')]
+    
+    ## check if subsets are okay
+    possible_subets = ['test']
+    for idx in range(1,4):
+        possible_subets.append('train_'+str(idx))        
+        possible_subets.append('val_'+str(idx))        
+        
+    for subsets in [args.train_subsets, args.val_subsets, args.test_subsets]:
+        for subset in subsets:
+            assert subset in possible_subets, 'subest should from one of these '+''.join(possible_subets)
 
     args.dataset = args.dataset.lower()
     args.basenet = args.basenet.lower()
-
-    if args.dataset == 'coco':
-        args.train_sets = ['train2017']
-        args.val_sets = ['val2017']
-    elif args.dataset == 'voc':
-        args.train_sets = ['train2007', 'val2007', 'train2012', 'val2012']
-        args.val_sets = ['test2007']
 
     args.means =[0.485, 0.456, 0.406]
     args.stds = [0.229, 0.224, 0.225]
@@ -47,6 +44,8 @@ def set_args(args, iftest='train'):
     hostname = socket.gethostname()
     args.hostname = hostname
     args.user = username
+    
+    
 
     print('\n\n ', username, ' is using ', hostname, '\n\n')
     if username == 'gurkirt':
@@ -70,10 +69,11 @@ def set_args(args, iftest='train'):
     return args
 
 def create_exp_name(args):
-    return 'FPN{:d}x{:d}-{:s}-{:s}-hl{:01d}s{:01d}-bn{:d}f{:d}b{:d}-bs{:02d}-{:s}-lr{:06d}-{:s}'.format(
-                                            args.min_size, args.max_size, args.dataset, args.basenet,
-                                            args.num_head_layers, args.shared_heads, int(args.fbn), args.freezeupto, int(args.use_bias),
-                                            args.batch_size, args.optim, int(args.lr * 1000000), args.loss_type)
+    return 'FPN{:d}x{:d}-{:s}{:02d}-{:s}-hl{:01d}s{:01d}-bn{:d}f{:d}b{:d}-bs{:02d}'.format(
+                                            args.min_size, args.max_size, args.dataset, args.split_id, args.basenet,
+                                            args.num_head_layers, args.shared_heads, int(args.fbn), 
+                                            args.freezeupto, int(args.use_bias),
+                                            args.batch_size)
 
 # Freeze batch normlisation layers
 def set_bn_eval(m):
@@ -91,8 +91,8 @@ def get_individual_labels(gt_boxes, tgt_labels, nlt):
     
     max_num = np.sum(tgt_labels>-1)
     new_gts = np.zeros((max_num, 5))
-    if max_num<1: # fix it
-        print('maxnum lower than 1 ', max_num, nlt)
+    # if max_num<1: # fix it
+    #     print('maxnum lower than 1 ', max_num, nlt)
     # pdb.set_trace()
     ccc = 0
     for n in range(tgt_labels.shape[0]):
@@ -107,6 +107,19 @@ def get_individual_labels(gt_boxes, tgt_labels, nlt):
 def get_individual_location_labels(gt_boxes, tgt_labels):
     return [gt_boxes, tgt_labels]
     
+def filter_detections(args, scores, decoded_boxes_batch):
+    c_mask = scores.gt(args.conf_thresh)  # greater than minmum threshold
+    scores = scores[c_mask].squeeze()
+    if scores.dim() == 0 or scores.shape[0] == 0:
+        return np.asarray([])
+    
+    boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
+    ids, counts = nms(boxes, scores, args.nms_thresh, args.topk*20)  # idsn - ids after nms
+    scores = scores[ids[:min(args.topk,counts)]].cpu().numpy()
+    boxes = boxes[ids[:min(args.topk,counts)]].cpu().numpy()
+    cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
+    return cls_dets
+
 def eval_strings():
     return ["Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = ",
             "Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = ",

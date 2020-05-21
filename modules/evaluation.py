@@ -216,11 +216,11 @@ def evaluate_locations(gt_boxes, det_boxes, CLASSES, iou_thresh=0.5):
 def evaluate(gts, dets, all_classes, iou_thresh=0.5):
     # np.mean(ap_all), ap_all, ap_strs
     aps, aps_all, ap_strs = [], [], []
-    for nlt in range(4):
-        if nlt<3:
-            a, b, c = evaluate_detections(gts[nlt], dets[nlt], all_classes[nlt], iou_thresh)
-        else: # evlauate locations
-            a, b, c = evaluate_locations(gts[nlt], dets[nlt], all_classes[nlt], iou_thresh)
+    for nlt in range(len(all_classes)):
+        # if nlt<3:
+        a, b, c = evaluate_detections(gts[nlt], dets[nlt], all_classes[nlt], iou_thresh)
+        # else: # evlauate locations
+        # a, b, c = evaluate_locations(gts[nlt], dets[nlt], all_classes[nlt], iou_thresh)
         aps.append(a)
         aps_all.append(b)
         ap_strs.append(c)
