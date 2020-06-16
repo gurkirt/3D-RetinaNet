@@ -36,6 +36,21 @@ def filter_labels(ids, all_labels, used_labels):
     return used_ids
 
 
+def get_gt_video_list(anno_file, subsets):
+    """Get video list form ground truth videos used in subset 
+    and their ground truth tubes """
+
+    with open(anno_file, 'r') as fff:
+        final_annots = json.load(fff)
+
+    video_list = []
+    for videoname in final_annots['db']:
+        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
+            video_list.append(videoname)
+
+    return video_list
+
+
 def get_filtered_tubes(label_key, final_annots, videoname):
     
     key_tubes = final_annots['db'][videoname][label_key]
@@ -217,8 +232,8 @@ def make_lists(anno_file, subsets=['train_3'], skip_step=1, full_test=False):
     ptrstr += ' frames_counted ' + str(frames_counted)
     
     # print(ptrstr)
-    list2r = [[idlist, video_list, ptrstr, agent_labels], [action_labels, duplex_labels, triplet_labels, loc_labels, types]]
-    return list2r, tubes
+    list4r = [[idlist, video_list, ptrstr, agent_labels], [action_labels, duplex_labels, triplet_labels, loc_labels, types], [duplex_childs, triplet_childs]]
+    return list4r
 
 
 
@@ -241,9 +256,10 @@ class Read(data.Dataset):
         self.transform = transform
         self.anno_transform = anno_transform
         self.ids = list()
-        list4r, self.tubes = make_lists(self.anno_file, subsets=args.subsets, skip_step=skip_step, full_test=full_test)
+        list4r = make_lists(self.anno_file, subsets=args.subsets, skip_step=skip_step, full_test=full_test)
         idlist, self.video_list, self.print_str, self.agent = list4r[0]
         self.action, self.duplex, self.triplet, self.loc, self.label_types  = list4r[1]
+        self.duplex_childs, self.triplet_childs = list4r[2]
         self.num_label_type = len(self.label_types)
         
         self.ids = idlist

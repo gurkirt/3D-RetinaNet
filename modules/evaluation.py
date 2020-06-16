@@ -344,6 +344,7 @@ def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou
 
     ap_all = []
     ap_strs = []
+    sap = 0.0
     video_list, gt_tubes = get_gt_tubes(final_annots, subset, label_type)
     det_tubes = {}
     
@@ -388,12 +389,13 @@ def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou
             pr[count+1, 0] = float(tp) / float(tp + fp)
             pr[count+1, 1] = float(tp) / float(tp + fn)
 
-        class_ap = pr_to_ap(pr)
-
+        class_ap = float(100*pr_to_ap(pr))
+        sap += class_ap
         ap_all.append(class_ap)
         # print(cls_ind,classes[cls_ind], cls_ap)
         ap_str = class_name + ' : ' + str(num_postives) + \
-            ' : ' + str(count) + ' : ' + str(class_ap*100)
+            ' : ' + str(count) + ' : ' + str(class_ap)
         ap_strs.append(ap_str)
-    ap_strs.append('Mean AP:: {:0.2f}'.format(100*np.mean(ap_all)))
-    return np.mean(ap_all), ap_all, ap_strs
+    mAP = sap/len(classes)
+    ap_strs.append('\nMean AP:: {:0.2f}'.format(mAP))
+    return mAP, ap_all, ap_strs

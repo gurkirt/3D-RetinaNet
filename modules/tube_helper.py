@@ -36,7 +36,7 @@ def make_gt_tube(frames, boxes, label_id):
     tube['label_id'] = label_id
     return tube
 
-def trim_tubes(start_id, numc, paths, topk=3, score_thresh=0.1, alpha=3, min_len=4):
+def trim_tubes(start_id, numc, paths, topk=3, alpha=3, min_len=3):
     """ Trim the paths into tubes using DP"""
     tubes = []
     for path in paths:

@@ -211,13 +211,14 @@ def are_there_gaps(array):
     return gaps
 
 
-def fill_gaps(paths, min_len_with_gaps=8):
+def fill_gaps(paths, min_len_with_gaps=8, minscore=0.1):
     lp_count = len(paths)
     new_paths = []
     filling_gaps = 0
     for lp in range(lp_count):
         path = paths[lp]
-        if len(path['boxes']) > 0:
+        path_score = np.mean(path['scores'])
+        if len(path['boxes']) >= min_len_with_gaps-2 or path_score > minscore:
             foundAt = path['foundAt']
             assert sorted(foundAt), 'foundAt should have been sorted i.e., paths should be built incremently'
             if are_there_gaps(foundAt):
