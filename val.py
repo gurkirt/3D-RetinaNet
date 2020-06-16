@@ -1,6 +1,8 @@
 
 """
+
 This script contain valiudation code at the time of training
+
 """
 import time
 import torch
@@ -65,7 +67,7 @@ def validate(args, net,  val_data_loader, val_dataset, iteration_num):
                     for cl_ind in range(num_c):
                         scores = confidence[b, :, cc].squeeze().clone()
                         cc += 1
-                        cls_dets = uitls.filter_detections(args, scores, decoded_boxes_batch)
+                        cls_dets = utils.filter_detections(args, scores, decoded_boxes_batch)
                         det_boxes[nlt][cl_ind].append(cls_dets)
 
                 count += 1
@@ -83,5 +85,5 @@ def validate(args, net,  val_data_loader, val_dataset, iteration_num):
                 print('NMS stuff Time {:0.3f}'.format(te - tf))
 
     print('Evaluating detections for itration number ', iteration_num)
-    all_classes =  [args.agents, args.actions, args.duplexes, args.triplets, args.locations]
-    return evaluate(gt_boxes_all, det_boxes, all_classes, iou_thresh=iou_thresh)
+    
+    return evaluate(gt_boxes_all, det_boxes, args.all_classes, iou_thresh=iou_thresh)

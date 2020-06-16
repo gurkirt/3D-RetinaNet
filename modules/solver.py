@@ -63,12 +63,8 @@ def get_optim(args, net):
         optimizer = optim.SGD(params)
     elif args.optim == 'ADAM':
         optimizer = optim.Adam(params)
-    # elif args.optim == 'ADAMW':
-    #     optimizer = AdamW(params)
-    # elif args.optim == 'ADAMM':
-    #     optimizer = AdamM(params)
     else:
-        error('Define optimiser type ')
+        raise NotImplementedError('Define optimiser type')
     
     solver_print_str += 'optimizer is '+ args.optim + '\nDone solver configs\n\n'
 

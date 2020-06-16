@@ -50,10 +50,12 @@ def one_hot_labels(tgt_labels, nlt, numc):
     # else:
     # present = [1]
     # print(tgt_labels.shape)
+    
     for n in range(tgt_labels.shape[0]):
         c = 0
         for t in range(tgt_labels.shape[1]):
-            if tgt_labels[n,t]>=0:
+            if tgt_labels[n,t].item()>=0:
+                # print(nlt,n,t, numc, tgt_labels[n,t])
                 labels[n+1, tgt_labels[n,t]] = 1
                 c = 1
             else:
@@ -74,11 +76,11 @@ class FocalLoss(nn.Module):
         super(FocalLoss, self).__init__()
         self.positive_threshold = args.positive_threshold
         self.negative_threshold = args.negative_threshold
-        self.num_agents = args.num_agents
-        self.num_actions = args.num_actions
-        self.num_duplexes = args.num_duplexes
-        self.num_triplets = args.num_triplets
-        self.num_locations = args.num_locations
+        self.num_agent = args.num_agent
+        self.num_action = args.num_action
+        self.num_duplex = args.num_duplex
+        self.num_triplet = args.num_triplet
+        self.num_loc = args.num_loc
         # # self.num_classes_list = args.num_classes_list 
         self.nlts = args.nlts
         self.num_classes_list = args.num_classes_list
@@ -104,15 +106,15 @@ class FocalLoss(nn.Module):
         confidence = torch.sigmoid(confidence)
         binary_preds = confidence[:,:, 0]
         cc = 1 
-        agent_preds = confidence[:,:,cc:cc+self.num_agents]
-        cc += self.num_agents
-        action_preds = confidence[:,:,cc:cc+self.num_actions]
-        cc += self.num_actions
-        duplex_preds = confidence[:,:,cc:cc+self.num_duplexes]
-        cc += self.num_duplexes
-        triplet_preds = confidence[:,:,cc:cc+self.num_triplets]
-        cc += self.num_triplets
-        location_preds = confidence[:,:,cc:cc+self.num_locations]
+        agent_preds = confidence[:,:,cc:cc+self.num_agent]
+        cc += self.num_agent
+        action_preds = confidence[:,:,cc:cc+self.num_action]
+        cc += self.num_action
+        duplex_preds = confidence[:,:,cc:cc+self.num_duplex]
+        cc += self.num_duplex
+        triplet_preds = confidence[:,:,cc:cc+self.num_triplet]
+        cc += self.num_triplet
+        location_preds = confidence[:,:,cc:cc+self.num_loc]
 
         # binary_preds = confidence[:,:, 0]
         # rest_preds = confidence[:,:,1:]
@@ -180,24 +182,24 @@ class FocalLoss(nn.Module):
         
         mask = labels_bin > -1 # Get mask to remove ignore examples
         # agent_loss
-        preds = agent_preds[mask].reshape(-1, self.num_agents) # Remove Ignore preds
-        labels = all_labels_agents[mask].reshape(-1, self.num_agents) # Remove Ignore labels
+        preds = agent_preds[mask].reshape(-1, self.num_agent) # Remove Ignore preds
+        labels = all_labels_agents[mask].reshape(-1, self.num_agent) # Remove Ignore labels
         agent_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
         
-        preds = action_preds[mask].reshape(-1, self.num_actions) # Remove Ignore preds
-        labels = all_labels_actions[mask].reshape(-1, self.num_actions) # Remove Ignore labels
+        preds = action_preds[mask].reshape(-1, self.num_action) # Remove Ignore preds
+        labels = all_labels_actions[mask].reshape(-1, self.num_action) # Remove Ignore labels
         action_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
 
-        preds = duplex_preds[mask].reshape(-1, self.num_duplexes) # Remove Ignore preds
-        labels = all_labels_duplexes[mask].reshape(-1, self.num_duplexes) # Remove Ignore labels
+        preds = duplex_preds[mask].reshape(-1, self.num_duplex) # Remove Ignore preds
+        labels = all_labels_duplexes[mask].reshape(-1, self.num_duplex) # Remove Ignore labels
         duplex_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
         
-        preds = triplet_preds[mask].reshape(-1, self.num_triplets) # Remove Ignore preds
-        labels = all_labels_triplets[mask].reshape(-1, self.num_triplets) # Remove Ignore labels
+        preds = triplet_preds[mask].reshape(-1, self.num_triplet) # Remove Ignore preds
+        labels = all_labels_triplets[mask].reshape(-1, self.num_triplet) # Remove Ignore labels
         triplet_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
 
-        preds = location_preds[mask].reshape(-1, self.num_locations) # Remove Ignore preds
-        labels = all_labels_locations[mask].reshape(-1, self.num_locations) # Remove Ignore labels
+        preds = location_preds[mask].reshape(-1, self.num_loc) # Remove Ignore preds
+        labels = all_labels_locations[mask].reshape(-1, self.num_loc) # Remove Ignore labels
         location_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
 
         preds = binary_preds[mask] # Remove Ignore preds
@@ -206,4 +208,4 @@ class FocalLoss(nn.Module):
         binary_loss = sigmoid_focal_loss(preds, labels, num_pos, self.alpha, self.gamma)
         
         # print(num_pos, location_loss.item(), triplet_loss.item(), duplex_loss.item(), action_loss.item(), agent_loss.item())
-        return regression_loss, binary_loss + location_loss + triplet_loss + duplex_loss + action_loss + agent_loss
+        return regression_loss, (binary_loss + location_loss + triplet_loss + duplex_loss + action_loss + agent_loss)/6.0

@@ -2,13 +2,15 @@
 import os
 import torch
 import argparse
+import numpy as np
 from modules import utils
-from train import train_main
+from train import train
 from data import Read
 from torchvision import transforms
 from data.transforms import Resize
 from models.retinanet_shared_heads import build_retinanet_shared_heads
-
+from test import test
+from build_tubes import build_tubes
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
@@ -16,7 +18,7 @@ def str2bool(v):
 def main():
     parser = argparse.ArgumentParser(description='Training single stage FPN with OHEM, resnet as backbone')
     # Name of backbone networ, e.g. resnet18, resnet34, resnet50, resnet101 resnet152 are supported 
-    parser.add_argument('--mode', default='train', help='mode can be train or test define subsets accordingly')
+    parser.add_argument('--mode', default='train', help='mode can be train or test define subsets accordingly, build tubes')
     parser.add_argument('--basenet', default='resnet50', help='pretrained base model')
     # if output heads are have shared features or not: 0 is no-shareing else sharining enabled
     # parser.add_argument('--multi_scale', default=False, type=str2bool,help='perfrom multiscale training')
@@ -26,8 +28,8 @@ def main():
     #  Name of the dataset only voc or coco are supported
     parser.add_argument('--dataset', default='aarav', help='pretrained base model')
     parser.add_argument('--train_subsets', default='train_3,', type=str,help='Training subsets seprated by ,')
-    parser.add_argument('--val_subsets', default='val_3,', type=str,help='Validation subsets seprated by ,')
-    parser.add_argument('--test_subsets', default='test,', type=str,help='Testing subsets seprated by ,')
+    parser.add_argument('--val_subsets', default='', type=str,help='Validation subsets seprated by ,')
+    parser.add_argument('--test_subsets', default='', type=str,help='Testing subsets seprated by ,')
     # Input size of image only 600 is supprted at the moment 
     parser.add_argument('--min_size', default=600, type=int, help='Input Size for FPN')
     parser.add_argument('--max_size', default=1000, type=int, help='Input Size for FPN')
@@ -55,15 +57,18 @@ def main():
     parser.add_argument('--negative_threshold', default=0.4, type=float, help='Min Jaccard index for matching')
 
     # Evaluation hyperparameters
-    parser.add_argument('--save_detections', default=False, type=str2bool, help='eval iterations')
-    parser.add_argument('--eval_iters', default='90000', type=str, help='eval iterations')
+    # parser.add_argument('--save_detections', default=False, type=str2bool, help='eval iterations
+    parser.add_argument('--eval_iters', default='30000', type=str, help='eval iterations')
     parser.add_argument('--intial_val', default=5000, type=int, help='Initial number of training iterations before evaluation')
     parser.add_argument('--val_step', default=25000, type=int, help='Number of training iterations before evaluation')
     parser.add_argument('--iou_thresh', default=0.5, type=float, help='Evaluation threshold')
     parser.add_argument('--conf_thresh', default=0.05, type=float, help='Confidence threshold for evaluation')
     parser.add_argument('--nms_thresh', default=0.45, type=float, help='NMS threshold')
-    parser.add_argument('--topk', default=100, type=int, help='topk for evaluation')
+    parser.add_argument('--topk', default=25, type=int, help='topk for evaluation')
 
+    ## tubes hyper parameters
+    parser.add_argument('--compute_paths', default=False, type=str2bool, help='eval iterations')
+    parser.add_argument('--compute_tubes', default=False, type=str2bool, help='eval iterations')
     # Progress logging
     parser.add_argument('--log_start', default=149, type=int, help='start loging after k steps for text/tensorboard') # Let initial ripples settle down
     parser.add_argument('--log_step', default=10, type=int, help='Log every k steps for text/tensorboard')
@@ -75,7 +80,7 @@ def main():
 
     # Use CUDA_VISIBLE_DEVICES=0,1,4,6 to select GPUs to use
     parser.add_argument('--data_root', default='/mnt/mercury-fast/datasets/', help='Location to root directory fo dataset') # /mnt/mars-fast/datasets/
-    parser.add_argument('--save_root', default='/mnt/mercury-fast/datasets/', help='Location to save checkpoint models') # /mnt/sun-gamma/datasets/
+    parser.add_argument('--save_root', default='/mnt/mercury-alpha/', help='Location to save checkpoint models') # /mnt/sun-gamma/datasets/
     parser.add_argument('--model_dir', default='', help='Location to where imagenet pretrained models exists') # /mnt/mars-fast/datasets/
 
     ## Parse arguments
@@ -96,7 +101,7 @@ def main():
     if not os.path.isdir(args.save_root): #if save directory doesn't exist create it
         os.makedirs(args.save_root)
 
-
+    assert args.mode in ['train','test','tubes'], 'mode must be from ' + ','.join(['train','test','tubes'])
     if args.mode == 'train':
         args.subsets = args.train_subsets
         train_transform = transforms.Compose([
@@ -105,15 +110,14 @@ def main():
                             transforms.ToTensor(),
                             transforms.Normalize(mean=args.means, std=args.stds)])
 
-        train_dataset = Read(args, train=True, subsets transform=train_transform)
+        train_dataset = Read(args, train=True, transform=train_transform)
         print('Done Loading Dataset Train Dataset :::>>>\n',train_dataset.print_str)
         ## For validation set
         full_test = False
-        args.subsets = args.train_subsets
+        args.subsets = args.val_subsets
         skip_step = 3
     else:
         args.subsets = args.test_subsets
-        assert args.mode == 'test', 'mode must be train or test'
         full_test=True
         skip_step = 1
 
@@ -124,30 +128,31 @@ def main():
     val_dataset = Read(args, train=False, transform=val_transform, skip_step=skip_step, full_test=full_test)
     print('Done Loading Dataset Validation Dataset :::>>>\n',val_dataset.print_str)
 
-    args.agents = val_dataset.agents
-    args.actions = val_dataset.actions
-    args.duplexes = val_dataset.duplexes
-    args.triplets = val_dataset.triplets
-    args.locations = val_dataset.locations
-    args.num_agents = len(val_dataset.agents)
-    args.num_actions = len(val_dataset.actions)
-    args.num_duplexes = len(val_dataset.duplexes)
-    args.num_triplets = len(val_dataset.triplets)
-    args.num_locations = len(val_dataset.locations)
-    args.num_classes =  1 + args.num_agents+args.num_actions+args.num_duplexes+args.num_triplets+args.num_locations # one for objectness
-    args.label_types = ['agent', 'action', 'duplexes', 'triplets', 'location']
-    args.num_classes_list = [args.num_agents, args.num_actions, args.num_duplexes, args.num_triplets, args.num_locations]
-    
-    args.num_label_type = train_dataset.num_label_type
+    args.agent = val_dataset.agent
+    args.action = val_dataset.action
+    args.duplex = val_dataset.duplex
+    args.triplet = val_dataset.triplet
+    args.loc = val_dataset.loc
+    args.num_agent = len(val_dataset.agent)
+    args.num_action = len(val_dataset.action)
+    args.num_duplex = len(val_dataset.duplex)
+    args.num_triplet = len(val_dataset.triplet)
+    args.num_loc = len(val_dataset.loc)
+    args.num_classes =  1 + args.num_agent+args.num_action+args.num_duplex+args.num_triplet+args.num_loc # one for objectness
+    args.label_types = ['agent', 'action', 'duplex', 'triplet', 'loc']
+    args.num_classes_list = [args.num_agent, args.num_action, args.num_duplex, args.num_triplet, args.num_loc]
+    args.all_classes =  [args.agent, args.action, args.duplex, args.triplet, args.loc]
+    args.num_label_type = val_dataset.num_label_type
     args.nlts = args.num_label_type
     args.use_bias = args.use_bias>0
     args.head_size = 256
-    
-    net = build_retinanet_shared_heads(args).cuda()
-    
-    if args.multi_gpu:
-        print('\nLets do dataparallel\n')
-        net = torch.nn.DataParallel(net)
+
+    if args.mode != 'tubes':
+        net = build_retinanet_shared_heads(args).cuda()
+
+        if args.multi_gpu:
+            print('\nLets do dataparallel\n')
+            net = torch.nn.DataParallel(net)
     
     if args.mode == 'train':
         if args.fbn:
@@ -155,10 +160,13 @@ def main():
                 net.module.backbone_net.apply(utils.set_bn_eval)
             else:
                 net.backbone_net.apply(utils.set_bn_eval)
-            
         train(args, net, train_dataset, val_dataset)
-    else:
-        test(args, net)
+
+    elif args.mode == 'test':
+        test(args, net, val_dataset)
+    elif args.mode == 'tubes':
+        build_tubes(args, val_dataset)
+    
 
 if __name__ == "__main__":
     main()

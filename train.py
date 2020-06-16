@@ -3,6 +3,7 @@
 import time
 import datetime
 import torch
+import math
 from modules import utils
 import torch.utils.data as data_utils
 from modules import  AverageMeter
@@ -75,7 +76,7 @@ def train(args, net, train_dataset, val_dataset):
     torch.cuda.synchronize()
     start = time.perf_counter()
     iteration = args.start_iteration
-    eopch = 0
+    total_epochs = math.ceil(args.max_iter /  epoch_size)
     num_bpe = len(train_data_loader)
     while iteration <= args.max_iter:
         for i, (images, counts, gt_boxes, gt_labels, img_indexs, wh) in enumerate(train_data_loader):
@@ -133,10 +134,9 @@ def train(args, net, train_dataset, val_dataset):
                     sw.add_scalars('Classification', {'val': cls_losses.val, 'avg':cls_losses.avg},iteration)
                     sw.add_scalars('Localisation', {'val': loc_losses.val, 'avg':loc_losses.avg},iteration)
                     sw.add_scalars('Overall', {'val': losses.val, 'avg':losses.avg},iteration)
-                    
-                print_line = 'Itration [{:d}]{:06d}/{:06d} loc-loss {:.2f}({:.2f}) cls-loss {:.2f}({:.2f}) ' \
-                             'average-loss {:.2f}({:.2f}) DataTime{:0.2f}({:0.2f}) Timer {:0.2f}({:0.2f})'.format( epoch,
-                              iteration, args.max_iter, loc_losses.val, loc_losses.avg, cls_losses.val,
+                epoch = iteration // epoch_size
+                print_line = 'Itration [{:d}/{:d}]{:06d}/{:06d} loc-loss {:.2f}({:.2f}) cls-loss {:.2f}({:.2f}) ' \
+                             'average-loss {:.2f}({:.2f}) DataTime{:0.2f}({:0.2f}) Timer {:0.2f}({:0.2f})'.format( epoch, total_epochs, iteration, args.max_iter, loc_losses.val, loc_losses.avg, cls_losses.val,
                               cls_losses.avg, losses.val, losses.avg, 10*data_time.val, 10*data_time.avg, 10*batch_time.val, 10*batch_time.avg)
 
                 log_file.write(print_line+'\n')
@@ -175,7 +175,7 @@ def train(args, net, train_dataset, val_dataset):
                         sw.add_scalar('{:s}mAP'.format(args.label_types[nlt]), mAP[nlt], iteration)
                         class_AP_group = dict()
                         for c, ap in enumerate(ap_all[nlt]):
-                            class_AP_group[all_classes[nlt][c]] = ap
+                            class_AP_group[args.all_classes[nlt][c]] = ap
                         sw.add_scalars('ClassAP-{:s}'.format(args.label_types[nlt]), class_AP_group, iteration)
 
 

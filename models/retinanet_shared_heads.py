@@ -60,7 +60,7 @@ class RetinaNet(nn.Module):
         bias_value = -math.log((1 - self.prior_prob ) / self.prior_prob )
         nn.init.constant_(self.cls_heads[-1].bias, bias_value)
         
-        if not hasattr(args, 'eval_iters'): # eval_iters only in test case
+        if args.mode == 'train': # eval_iters only in test case
             self.criterion = FocalLoss(args)
 
 
