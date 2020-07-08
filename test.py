@@ -22,7 +22,7 @@ def test(args, net, val_dataset):
     val_data_loader = data_utils.DataLoader(val_dataset, int(args.batch_size), num_workers=args.num_workers,
                                  shuffle=False, pin_memory=True, collate_fn=custum_collate)
 
-    for iteration in args.eval_iters:
+    for iteration in args.EVAL_ITERS:
         args.det_itr = iteration
         print('Testing at ', iteration)
         log_file = open("{pt:s}/testing-{it:06d}-{date:%m-%d-%Hx}.log".format(pt=args.save_root, it=iteration, date=datetime.datetime.now()), "w", 10)

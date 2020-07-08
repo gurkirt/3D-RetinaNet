@@ -36,7 +36,7 @@ def filter_labels(ids, all_labels, used_labels):
     return used_ids
 
 
-def get_gt_video_list(anno_file, subsets):
+def get_gt_video_list(anno_file, SUBSETS):
     """Get video list form ground truth videos used in subset 
     and their ground truth tubes """
 
@@ -45,7 +45,7 @@ def get_gt_video_list(anno_file, subsets):
 
     video_list = []
     for videoname in final_annots['db']:
-        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
+        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], SUBSETS):
             video_list.append(videoname)
 
     return video_list
@@ -99,16 +99,16 @@ def get_video_tubes(final_annots, videoname):
     return tubes
 
 
-def is_part_of_subsets(split_ids, subsets):
+def is_part_of_subsets(split_ids, SUBSETS):
     
     is_it = False
-    for subset in subsets:
+    for subset in SUBSETS:
         if subset in split_ids:
             is_it = True
     
     return is_it
 
-def make_lists(anno_file, subsets=['train_3'], skip_step=1, full_test=False):
+def make_lists(anno_file, SUBSETS=['train_3'], skip_step=1, full_test=False):
 
     # imagesDir = rootpath + imgtype + '/'
     idlist = []
@@ -149,8 +149,8 @@ def make_lists(anno_file, subsets=['train_3'], skip_step=1, full_test=False):
         # actidx = database[videoname]['label']
         numf = database[videoname]['numf']
         tubes[videoname] = {}
-        # print(subsets)
-        if not is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
+        # print(SUBSETS)
+        if not is_part_of_subsets(final_annots['db'][videoname]['split_ids'], SUBSETS):
             continue
         # print('we got here', videoname)
         # pdb.set_trace()
@@ -225,7 +225,7 @@ def make_lists(anno_file, subsets=['train_3'], skip_step=1, full_test=False):
     types = ['agents', 'actions', 'duplexes', 'triplets', 'locations']
     for k, labels in enumerate([agent_labels, action_labels, duplex_labels, triplet_labels, loc_labels]):
         for c, cls_ in enumerate(labels): # just to see the distribution of train and test sets
-            ptrstr += '-'.join(subsets) + ' {:05d} label: ind={:02d} name:{:s}\n'.format(
+            ptrstr += '-'.join(SUBSETS) + ' {:05d} label: ind={:02d} name:{:s}\n'.format(
                                             counts[c,k] , c, cls_)
 
     ptrstr += 'idlistlen' + str(len(idlist)) 
@@ -237,26 +237,26 @@ def make_lists(anno_file, subsets=['train_3'], skip_step=1, full_test=False):
 
 
 
-class Read(data.Dataset):
+class Read(data.DATASET):
     """UCF24 Action Detection dataset class for pytorch dataloader
     """
 
     def __init__(self, args, train=True, input_type='rgb', transform=None, 
                 anno_transform=None, skip_step=1, full_test=False):
 
-        self.dataset = args.dataset
-        self.subsets, = args.subsets,
+        self.DATASET = args.DATASET
+        self.SUBSETS, = args.SUBSETS,
         # self.input_type = input_type
         self.input_type = input_type+'-images'
         self.train = train
-        self.root = args.data_root + args.dataset + '/'
+        self.root = args.DATA_ROOT + args.DATASET + '/'
         self.anno_file  = self.root + 'annots_12fps_v1.0.json'
         self._imgpath = os.path.join(self.root, self.input_type)
         # self.image_sets = image_sets
         self.transform = transform
         self.anno_transform = anno_transform
         self.ids = list()
-        list4r = make_lists(self.anno_file, subsets=args.subsets, skip_step=skip_step, full_test=full_test)
+        list4r = make_lists(self.anno_file, SUBSETS=self.SUBSETS, skip_step=skip_step, full_test=full_test)
         idlist, self.video_list, self.print_str, self.agent = list4r[0]
         self.action, self.duplex, self.triplet, self.loc, self.label_types  = list4r[1]
         self.duplex_childs, self.triplet_childs = list4r[2]
@@ -264,8 +264,7 @@ class Read(data.Dataset):
         
         self.ids = idlist
         #print('spacify correct subset ')
-    
-    
+        
     def __len__(self):
         return len(self.ids)
 

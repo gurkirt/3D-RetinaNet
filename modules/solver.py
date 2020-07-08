@@ -5,18 +5,18 @@ import torch.optim as optim
 # from torch.optim.lr_scheduler import MultiStepLR
 
 class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
-    def __init__(self, optimizer, milestones, gammas, last_epoch=-1):
-        self.milestones = milestones
-        self.gammas = gammas
-        assert len(gammas) == len(milestones), 'Milestones and gammas should be of same length gammas are of len ' + (len(gammas)) + ' and milestones '+ str(len(milestones))
+    def __init__(self, optimizer, MILESTONES, GAMMAS, last_epoch=-1):
+        self.MILESTONES = MILESTONES
+        self.GAMMAS = GAMMAS
+        assert len(GAMMAS) == len(MILESTONES), 'MILESTONES and GAMMAS should be of same length GAMMAS are of len ' + (len(GAMMAS)) + ' and MILESTONES '+ str(len(MILESTONES))
         super(WarmupMultiStepLR, self).__init__(optimizer, last_epoch)
 
     def get_lr(self):
-        if self.last_epoch not in self.milestones:
+        if self.last_epoch not in self.MILESTONES:
             return [group['lr'] for group in self.optimizer.param_groups]
         else:
-            index = self.milestones.index(self.last_epoch)
-            return [group['lr'] * self.gammas[index] for group in self.optimizer.param_groups]
+            index = self.MILESTONES.index(self.last_epoch)
+            return [group['lr'] * self.GAMMAS[index] for group in self.optimizer.param_groups]
     
     def print_lr(self):
         print([[group['name'], group['lr']] for group in self.optimizer.param_groups])
@@ -68,6 +68,6 @@ def get_optim(args, net):
     
     solver_print_str += 'optimizer is '+ args.optim + '\nDone solver configs\n\n'
 
-    scheduler = WarmupMultiStepLR(optimizer, args.milestones, args.gammas)
+    scheduler = WarmupMultiStepLR(optimizer, args.MILESTONES, args.GAMMAS)
 
     return optimizer, scheduler, solver_print_str

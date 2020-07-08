@@ -46,14 +46,14 @@ class RetinaNet(nn.Module):
         self.head_size = args.head_size
         self.backbone_net = backbone
         self.shared_heads = args.shared_heads
-        self.num_head_layers = args.num_head_layers
+        self.HEAD_LAYERS = args.HEAD_LAYERS
         
-        assert self.shared_heads<self.num_head_layers, 'number of head layers should be less than shared layers h:'+str(self.num_head_layers)+' sh:'+str(self.shared_heads)
+        assert self.shared_heads<self.HEAD_LAYERS, 'number of head layers should be less than shared layers h:'+str(self.HEAD_LAYERS)+' sh:'+str(self.shared_heads)
         
         if self.shared_heads>0:
             self.features_layers = self.make_features(self.shared_heads)
-        self.reg_heads = self.make_head(self.ar * 4, self.num_head_layers - self.shared_heads)
-        self.cls_heads = self.make_head(self.ar * self.num_classes, self.num_head_layers - self.shared_heads)
+        self.reg_heads = self.make_head(self.ar * 4, self.HEAD_LAYERS - self.shared_heads)
+        self.cls_heads = self.make_head(self.ar * self.num_classes, self.HEAD_LAYERS - self.shared_heads)
         
         # if args.loss_type != 'mbox':
         self.prior_prob = 0.01
@@ -137,4 +137,4 @@ class RetinaNet(nn.Module):
         return layers
 
 def build_retinanet_shared_heads(args):
-    return RetinaNet(backbone_models(args.basenet, args.model_dir, args.use_bias), args)
+    return RetinaNet(backbone_models(args), args)

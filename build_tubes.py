@@ -48,7 +48,7 @@ def build_tubes(args, val_dataset):
 
         if args.compute_tubes:
             paths = perform_building(args, video_list, iteration)
-            make_tubes(args, paths, video_list, paths, tube_file)
+            make_tubes(args, paths, video_list, tube_file)
         
         torch.cuda.synchronize()
         print('Computation time {:0.2f}'.format(time.perf_counter() - tt0))
@@ -76,10 +76,8 @@ def build_tubes(args, val_dataset):
 
 def perform_building(args, video_list, iteration):
 
-    """Test a FPN network on an image database."""
-    
-    # opts
-    min_len = 4
+    """Build agent-level tube or called paths"""
+
     all_paths = {}
     for videoname in video_list:
         total_dets = 0
@@ -93,8 +91,6 @@ def perform_building(args, video_list, iteration):
             num_agent = args.num_agent
             t1 = time.perf_counter()
             
-            
-        
             live_paths = []
             dead_paths = []
             for frame_num in sorted(frame_ids):
@@ -135,7 +131,7 @@ def perform_building(args, video_list, iteration):
     return all_paths
 
 
-def make_tubes(args, paths, video_list, tube_file, min_len=4):
+def make_tubes(args, paths, video_list, tube_file):
     """Make tubes from paths and dump in tube_file"""
     if args.compute_tubes or not os.path.isfile(tube_file):
         print('building agent tubes')
@@ -146,15 +142,15 @@ def make_tubes(args, paths, video_list, tube_file, min_len=4):
             start_id = 1
             agrs_vars = vars(args)
             for ltype in args.label_types:
-                    print('building tubes for ', ltype)
-                    numc = agrs_vars['num_' + ltype]
-                    detection_tubes[ltype][videoname] = trim_tubes(
-                        start_id, numc, paths[videoname], topk=3, alpha=3)
-                    start_id += numc
-                    print(len(detection_tubes[ltype][videoname]), ltype+' tubes built')
+                print('building tubes for ', ltype)
+                numc = agrs_vars['num_' + ltype]
+                detection_tubes[ltype][videoname] = trim_tubes(
+                    start_id, numc, paths[videoname], topk=args.tubes_topk, alpha=args.tubes_alpha)
+                start_id += numc
+                print(len(detection_tubes[ltype][videoname]), ltype+' tubes built')
 
-        with open(tube_file, 'w') as f:
-                json.dump(detection_tubes, f)
+            with open(tube_file, 'w') as f:
+                    json.dump(detection_tubes, f)
 
 
 # if __name__ == '__main__':

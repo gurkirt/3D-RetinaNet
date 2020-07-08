@@ -17,13 +17,13 @@ def copy_source(source_dir):
 
 
 def set_args(args):
-    args.milestones = [int(val) for val in args.milestones.split(',')]
-    args.gammas = [float(val) for val in args.gammas.split(',')]
-    args.eval_iters = [int(val) for val in args.eval_iters.split(',')]
+    args.MILESTONES = [int(val) for val in args.MILESTONES.split(',')]
+    args.GAMMAS = [float(val) for val in args.GAMMAS.split(',')]
+    args.EVAL_ITERS = [int(val) for val in args.EVAL_ITERS.split(',')]
 
-    args.train_subsets = [val for val in args.train_subsets.split(',') if len(val)>1]
-    args.val_subsets = [val for val in args.val_subsets.split(',') if len(val)>1]
-    args.test_subsets = [val for val in args.test_subsets.split(',') if len(val)>1]
+    args.TRAIN_SUBSETS = [val for val in args.TRAIN_SUBSETS.split(',') if len(val)>1]
+    args.VAL_SUBSETS = [val for val in args.VAL_SUBSETS.split(',') if len(val)>1]
+    args.TEST_SUBSETS = [val for val in args.TEST_SUBSETS.split(',') if len(val)>1]
     
     ## check if subsets are okay
     possible_subets = ['test']
@@ -31,22 +31,22 @@ def set_args(args):
         possible_subets.append('train_'+str(idx))        
         possible_subets.append('val_'+str(idx))        
 
-    if len(args.val_subsets) < 1:
-        args.val_subsets = [ss.replace('train', 'val') for ss in args.train_subsets]
-    if len(args.test_subsets) < 1:
-        args.test_subsets = [ss.replace('train', 'val') for ss in args.train_subsets]
-        args.test_subsets.append('test')
+    if len(args.VAL_SUBSETS) < 1:
+        args.VAL_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
+    if len(args.TEST_SUBSETS) < 1:
+        args.TEST_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
+        args.TEST_SUBSETS.append('test')
     
     print(args)
-    for subsets in [args.train_subsets, args.val_subsets, args.test_subsets]:
+    for subsets in [args.TRAIN_SUBSETS, args.VAL_SUBSETS, args.TEST_SUBSETS]:
         for subset in subsets:
             assert subset in possible_subets, 'subest should from one of these '+''.join(possible_subets)
 
-    args.dataset = args.dataset.lower()
-    args.basenet = args.basenet.lower()
+    args.DATASET = args.DATASET.lower()
+    args.NET_DEPTH = args.NET_DEPTH.lower()
 
-    args.means =[0.485, 0.456, 0.406]
-    args.stds = [0.229, 0.224, 0.225]
+    args.MEANS =[0.485, 0.456, 0.406]
+    args.STDS = [0.229, 0.224, 0.225]
 
     username = getpass.getuser()
     hostname = socket.gethostname()
@@ -58,30 +58,34 @@ def set_args(args):
     if username == 'gurkirt':
         args.model_dir = '/mnt/mars-gamma/global-models/pytorch-imagenet/'
         if hostname == 'mars':
-            args.data_root = '/mnt/mercury-fast/datasets/'
-            args.save_root = '/mnt/mercury-alpha/'
+            args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
+            args.SAVE_ROOT = '/mnt/mercury-alpha/'
             args.vis_port = 8097
         elif hostname == 'venus':
-            args.data_root = '/mnt/mercury-fast/datasets/'
-            args.save_root = '/mnt/mercury-alpha/'
+            args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
+            args.SAVE_ROOT = '/mnt/mercury-alpha/'
             args.vis_port = 8095
         elif hostname == 'mercury':
-            args.data_root = '/mnt/mercury-fast/datasets/'
-            args.save_root = '/mnt/mercury-alpha/'
+            args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
+            args.SAVE_ROOT = '/mnt/mercury-alpha/'
             args.vis_port = 8098
         else:
             raise('ERROR!!!!!!!! Specify directories')
     
-    print('Your working directories are', args.data_root, args.save_root)
+    print('Your working directories are', args.DATA_ROOT, args.SAVE_ROOT)
     return args
 
 def create_exp_name(args):
-    splits = ''.join([split[0]+split[-1] for split in args.train_subsets])
-    return 'FPN{:d}x{:d}-{:s}{:s}-{:s}-hl{:01d}s{:01d}-bn{:d}f{:d}b{:d}-bs{:02d}'.format(
-                                            args.min_size, args.max_size, args.dataset, splits, args.basenet,
-                                            args.num_head_layers, args.shared_heads, int(args.fbn), 
-                                            args.freezeupto, int(args.use_bias),
-                                            args.batch_size)
+    splits = ''.join([split[0]+split[-1] for split in args.TRAIN_SUBSETS])
+    return '{:s}{:s}{:d}x{:d}-{:d}x{:d}-{:s}{:s}-h{:d}x{:d}x{:d}-bn{:d}f{:d}-bs{:02d}'.format(
+        args.NET_DEPTH, args.NET_TYPE,
+        args.MIN_SIZE, args.MAX_SIZE,
+        args.SEQ_LEN, args.SEQ_STEP,
+        args.DATASET, splits, 
+        args.HEAD_LAYERS, args.CLS_HEAD_TIME_SIZE,
+        args.REG_HEAD_TIME_SIZE,
+        int(args.FBN), args.FREEZE_UPTO, 
+        args.BATCH_SIZE)
 
 # Freeze batch normlisation layers
 def set_bn_eval(m):
@@ -116,21 +120,21 @@ def get_individual_location_labels(gt_boxes, tgt_labels):
 
 
 def filter_detections(args, scores, decoded_boxes_batch):
-    c_mask = scores.gt(args.conf_thresh)  # greater than minmum threshold
+    c_mask = scores.gt(args.CONF_THRESH)  # greater than minmum threshold
     scores = scores[c_mask].squeeze()
     if scores.dim() == 0 or scores.shape[0] == 0:
         return np.asarray([])
     
     boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
-    ids, counts = nms(boxes, scores, args.nms_thresh, args.topk*20)  # idsn - ids after nms
-    scores = scores[ids[:min(args.topk,counts)]].cpu().numpy()
-    boxes = boxes[ids[:min(args.topk,counts)]].cpu().numpy()
+    ids, counts = nms(boxes, scores, args.nms_thresh, args.TOPK*20)  # idsn - ids after nms
+    scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
+    boxes = boxes[ids[:min(args.TOPK,counts)]].cpu().numpy()
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
     return cls_dets
 
 
 def filter_detections_with_confidences(args, scores, decoded_boxes_batch, confidences):
-    c_mask = scores.gt(args.conf_thresh)  # greater than minmum threshold
+    c_mask = scores.gt(args.CONF_THRESH)  # greater than minmum threshold
     scores = scores[c_mask].squeeze()
     if scores.dim() == 0 or scores.shape[0] == 0:
         return np.asarray([]), np.asarray([])
@@ -138,10 +142,10 @@ def filter_detections_with_confidences(args, scores, decoded_boxes_batch, confid
     boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
     numc = confidences.shape[-1]
     confidences_ = confidences[c_mask,:].clone().view(-1, numc)
-    ids, counts = nms(boxes, scores, args.nms_thresh, args.topk*20)  # idsn - ids after nms
-    scores = scores[ids[:min(args.topk,counts)]].cpu().numpy()
-    boxes = boxes[ids[:min(args.topk,counts)]].cpu().numpy()
-    confidences_ = confidences_[ids[:min(args.topk,counts)]].cpu().numpy()
+    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*20)  # idsn - ids after nms
+    scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
+    boxes = boxes[ids[:min(args.TOPK,counts)]].cpu().numpy()
+    confidences_ = confidences_[ids[:min(args.TOPK,counts)]].cpu().numpy()
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
     save_data = np.hstack((cls_dets, confidences_)).astype(np.float32)
 
