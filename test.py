@@ -131,9 +131,7 @@ def perform_test(args, net,  val_data_loader, val_dataset, iteration):
                 print('NMS stuff Time {:0.3f}'.format(te - tf))
 
     print('Evaluating detections for itration number ', iteration)
-    # all_classes =  [args.agents, args.action, args.duplex, args.triplet, args.loc]
     return evaluate_detections(gt_boxes_all, det_boxes, ['Agentness'], iou_thresh=iou_thresh)
-    # return evaluate(gt_boxes_all, det_boxes, all_classes, iou_thresh=iou_thresh)
     
 if __name__ == '__main__':
     main()

@@ -1,6 +1,6 @@
 
-
 import time
+import os
 import datetime
 import torch
 import math
@@ -11,6 +11,8 @@ from data import custum_collate
 from modules.solver import get_optim
 from val import validate
 
+logger = utils.get_logger(__name__)
+
 def train(args, net, train_dataset, val_dataset):
     
     optimizer, scheduler, solver_print_str = get_optim(args, net)
@@ -20,8 +22,6 @@ def train(args, net, train_dataset, val_dataset):
 
     source_dir = args.SAVE_ROOT+'/source/' # where to save the source
     utils.copy_source(source_dir)
-
-    print('\nLoading Datasets')
 
     args.START_ITERATION = 0
     if args.RESUME>100:
@@ -36,19 +36,16 @@ def train(args, net, train_dataset, val_dataset):
         
     # anchors = anchors.cuda(0, non_blocking=True)
     if args.TENSORBOARD:
-        log_dir = args.SAVE_ROOT+'tensorboard-{date:%m-%d-%Hx}.log'.format(date=datetime.datetime.now())
-        sw = SummaryWriter(log_dir=log_dir)
-    log_file = open(args.SAVE_ROOT+'training.text{date:%m-%d-%Hx}.txt'.format(date=datetime.datetime.now()), 'w', 1)
-    log_file.write(args.exp_name+'\n')
+        log_dir = '{:s}/tboard-{}-{date:%m-%d-%Hx}'.format(args.log_dir, args.MODE, date=datetime.datetime.now())
+        sw = SummaryWriter(log_dir)
+    
+    logger.info('EXPERIMENT NAME:: ' + args.exp_name)
 
     for arg in sorted(vars(args)):
-        print(arg, getattr(args, arg))
-        log_file.write(str(arg)+': '+str(getattr(args, arg))+'\n')
-    log_file.write(str(net))
-    log_file.write(solver_print_str)
+        logger.info(str(arg)+': '+str(getattr(args, arg)))
+    logger.info(str(net))
+    logger.info(solver_print_str)
     net.train()
-    
-
     # loss counters
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -56,14 +53,10 @@ def train(args, net, train_dataset, val_dataset):
     loc_losses = AverageMeter()
     cls_losses = AverageMeter()
 
-    # train_dataset = DetectionDatasetDatasetDatasetDatasetDataset(args, 'train', BaseTransform(args.input_dim, args.means, args.stds))
-
-    log_file.write(train_dataset.print_str)
-    log_file.write(val_dataset.print_str)
-    print('Train-DATA :::>>>', train_dataset.print_str)
-    print('VAL-DATA :::>>>', val_dataset.print_str)
+    logger.info(train_dataset.print_str)
+    logger.info(val_dataset.print_str)
     epoch_size = len(train_dataset) // args.BATCH_SIZE
-    print('Training FPN on ', train_dataset.dataset,'\n')
+    logger.info('Training FPN with {} + {} as backbone '.format(args.ARCH, args.MODEL_TYPE))
 
 
     train_data_loader = data_utils.DataLoader(train_dataset, args.BATCH_SIZE, num_workers=args.NUM_WORKERS,
@@ -78,7 +71,7 @@ def train(args, net, train_dataset, val_dataset):
     total_epochs = math.ceil(args.MAX_ITERS /  epoch_size)
     num_bpe = len(train_data_loader)
     while iteration <= args.MAX_ITERS:
-        for i, (images, counts, gt_boxes, gt_labels, img_indexs, wh) in enumerate(train_data_loader):
+        for i, (images, gt_boxes, gt_labels, ego_labels, counts, img_indexs, wh) in enumerate(train_data_loader):
             if iteration > args.MAX_ITERS:
                 break
             iteration += 1
@@ -87,6 +80,7 @@ def train(args, net, train_dataset, val_dataset):
             gt_boxes = gt_boxes.cuda(0, non_blocking=True)
             gt_labels = gt_labels.cuda(0, non_blocking=True)
             counts = counts.cuda(0, non_blocking=True)
+            ego_labels = ego_labels.cuda(0, non_blocking=True)
             # forward
             torch.cuda.synchronize()
             data_time.update(time.perf_counter() - start)
@@ -94,32 +88,25 @@ def train(args, net, train_dataset, val_dataset):
             # print(images.size(), anchors.size())
             optimizer.zero_grad()
             # pdb.set_trace()
-            # print(gts.shape, counts.shape, images.shape)
-            loss_l, loss_c = net(images, gt_boxes, gt_labels, counts, img_indexs)
-            loss_l, loss_c = loss_l.mean() , loss_c.mean()
+            loss_l, loss_c = net(images, gt_boxes, gt_labels, ego_labels, counts, img_indexs)
+            loss_l, loss_c = loss_l.mean(), loss_c.mean()
             loss = loss_l + loss_c
 
             loss.backward()
             optimizer.step()
             scheduler.step()
 
-            # pdb.set_trace()
             loc_loss = loss_l.item()
             conf_loss = loss_c.item()
-            # pdb.set_trace()
-            # print(pppppppppppp)
             if loc_loss>300:
                 lline = '\n\n\n We got faulty LOCATION loss {} {} \n\n\n'.format(loc_loss, conf_loss)
-                log_file.write(lline)
-                print(lline)
+                logger.info(lline)
                 loc_loss = 20.0
             if conf_loss>300:
                 lline = '\n\n\n We got faulty CLASSIFICATION loss {} {} \n\n\n'.format(loc_loss, conf_loss)
-                log_file.write(lline)
-                print(lline)
+                logger.info(lline)
                 conf_loss = 20.0
             
-            # print('Loss data type ',type(loc_loss))
             loc_losses.update(loc_loss)
             cls_losses.update(conf_loss)
             losses.update((loc_loss + conf_loss)/2.0)
@@ -138,53 +125,46 @@ def train(args, net, train_dataset, val_dataset):
                              'average-loss {:.2f}({:.2f}) DataTime{:0.2f}({:0.2f}) Timer {:0.2f}({:0.2f})'.format( epoch, total_epochs, iteration, args.MAX_ITERS, loc_losses.val, loc_losses.avg, cls_losses.val,
                               cls_losses.avg, losses.val, losses.avg, 10*data_time.val, 10*data_time.avg, 10*batch_time.val, 10*batch_time.avg)
 
-                log_file.write(print_line+'\n')
-                print(print_line)
+                logger.info(print_line)
                 if iteration % (args.LOG_STEP*10) == 0:
-                    print_line = args.exp_name
-                    log_file.write(print_line+'\n')
-                    print(print_line)
+                    logger.info(args.exp_name)
 
 
             if (iteration % args.VAL_STEP == 0 or iteration== args.INTIAL_VAL or iteration == args.MAX_ITERS) and iteration>0:
                 torch.cuda.synchronize()
                 tvs = time.perf_counter()
-                print('Saving state, iter:', iteration)
+                logger.info('Saving state, iter:' + str(iteration))
                 torch.save(net.state_dict(), '{:s}/model_{:06d}.pth'.format(args.SAVE_ROOT, iteration))
                 torch.save(optimizer.state_dict(), '{:s}/optimizer_{:06d}.pth'.format(args.SAVE_ROOT, iteration))
-                net.eval() # switch net to evaluation mode
-                mAP, ap_all, ap_strs = validate(args, net, val_data_loader, val_dataset, iteration)
                 
-                net.train()
-                if args.FBN:
-                    if args.MULIT_GPU:
-                        net.module.backbone_net.apply(utils.set_bn_eval)
-                    else:
-                        net.backbone_net.apply(utils.set_bn_eval)
-
-                for nlt in range(args.nlts):
+                net.eval() # switch net to evaluation mode
+                
+                mAP, ap_all, ap_strs = validate(args, net, val_data_loader, val_dataset, iteration)
+                label_types = args.label_types + ['ego_action']
+                all_classes = args.all_classes + [args.ego_classes]
+                for nlt in range(args.num_label_types+1):
                     for ap_str in ap_strs[nlt]:
-                        print(ap_str)
-                        log_file.write(ap_str+'\n')
-                    ptr_str = '\n{:s} MEANAP:::=> {:0.5f}'.format(args.label_types[nlt], mAP[nlt])
-                    print(ptr_str)
-                    log_file.write(ptr_str)
+                        logger.info(ap_str)
+                    ptr_str = '\n{:s} MEANAP:::=> {:0.5f}'.format(label_types[nlt], mAP[nlt])
+                    logger.info(ptr_str)
 
                     if args.TENSORBOARD:
-                        sw.add_scalar('{:s}mAP'.format(args.label_types[nlt]), mAP[nlt], iteration)
+                        sw.add_scalar('{:s}mAP'.format(label_types[nlt]), mAP[nlt], iteration)
                         class_AP_group = dict()
                         for c, ap in enumerate(ap_all[nlt]):
-                            class_AP_group[args.all_classes[nlt][c]] = ap
-                        sw.add_scalars('ClassAP-{:s}'.format(args.label_types[nlt]), class_AP_group, iteration)
-
+                            class_AP_group[all_classes[nlt][c]] = ap
+                        sw.add_scalars('ClassAP-{:s}'.format(label_types[nlt]), class_AP_group, iteration)
 
                 torch.cuda.synchronize()
                 t0 = time.perf_counter()
                 prt_str = '\nValidation TIME::: {:0.3f}\n\n'.format(t0-tvs)
-                print(prt_str)
-                log_file.write(ptr_str)
+                logger.info(ptr_str)
 
-    log_file.close()
+                net.train()
+                if args.FBN:
+                    if args.MULTI_GPUS:
+                        net.module.backbone.apply(utils.set_bn_eval)
+                    else:
+                        net.backbone.apply(utils.set_bn_eval)
 
-# if __name__ == '__main__':
-#     main()
+                

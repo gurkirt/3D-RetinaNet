@@ -1,5 +1,6 @@
 
 import os
+import sys
 import torch
 import argparse
 import numpy as np
@@ -7,11 +8,10 @@ from modules import utils
 from train import train
 from data import Read
 from torchvision import transforms
-from data.transforms import Resize
-from models.retinanet_shared_heads import build_retinanet_shared_heads
+import data.transforms as vtf
+from models.retinanet import build_retinanet
 from test import test
 from build_tubes import build_tubes
-
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
@@ -20,23 +20,29 @@ def str2bool(v):
 def main():
     parser = argparse.ArgumentParser(description='Training single stage FPN with OHEM, resnet as backbone')
     parser.add_argument('--MODE', default='train', 
-                        help='mode can be train or test define SUBSETS accordingly, build tubes')
+                        help='MODE can be train or test define SUBSETS accordingly, build tubes')
     # Name of backbone network, e.g. resnet18, resnet34, resnet50, resnet101 resnet152 are supported
-    parser.add_argument('--NET_DEPTH', default='resnet50', 
+    parser.add_argument('--ARCH', default='resnet50', 
                         type=str, help='pretrained base model')
-    parser.add_argument('--NET_TYPE', default='resnet50',
+    parser.add_argument('--MODEL_TYPE', default='C2D',
                         type=str, help='pretrained base model')
-    parser.add_argument('--SEQ_LEN', default=1,
+    parser.add_argument('--MODEL_PATH', default='',
+                        help='Location to where imagenet pretrained models exists')  # /mnt/mars-fast/datasets/
+    parser.add_argument('--SEQ_LEN', default=4,
                         type=int, help='NUmber of input frames')
-    parser.add_argument('--SEQ_STEP', default=1,
+    parser.add_argument('--MIN_SEQ_STEP', default=1,
+                        type=int, help='DIFFERENCE of gap between the frames of sequence')
+    parser.add_argument('--MAX_SEQ_STEP', default=1,
                         type=int, help='DIFFERENCE of gap between the frames of sequence')
     # if output heads are have shared features or not: 0 is no-shareing else sharining enabled
     parser.add_argument('--MULIT_SCALE', default=False, type=str2bool,help='perfrom multiscale training')
-    parser.add_argument('--HEAD_LAYERS', default=4, 
+    parser.add_argument('--HEAD_LAYERS', default=0, 
+                        type=int,help='0 mean no shareding more than 0 means shareing')
+    parser.add_argument('--NUM_FEATURE_MAPS', default=5, 
                         type=int,help='0 mean no shareding more than 0 means shareing')
     parser.add_argument('--CLS_HEAD_TIME_SIZE', default=3, 
                         type=int, help='Temporal kernel size of classification head')
-    parser.add_argument('--REG_HEAD_TIME_SIZE', default=3,
+    parser.add_argument('--REG_HEAD_TIME_SIZE', default=1,
                     type=int, help='Temporal kernel size of regression head')
     #  Name of the dataset only voc or coco are supported
     parser.add_argument('--DATASET', default='aarav', 
@@ -48,30 +54,28 @@ def main():
     parser.add_argument('--TEST_SUBSETS', default='', 
                         type=str,help='Testing SUBSETS seprated by ,')
     # Input size of image only 600 is supprted at the moment 
-    parser.add_argument('--MIN_SIZE', default=600, 
+    parser.add_argument('--MIN_SIZE', default=416, 
                         type=int, help='Input Size for FPN')
-    parser.add_argument('--MAX_SIZE', default=1000, 
+    parser.add_argument('--MAX_SIZE', default=576, 
                         type=int, help='Input Size for FPN')
     #  data loading argumnets
-    parser.add_argument('--BATCH_SIZE', default=16, 
+    parser.add_argument('-b','--BATCH_SIZE', default=8, 
                         type=int, help='Batch size for training')
     # Number of worker to load data in parllel
-    parser.add_argument('--NUM_WORKERS', '-j', default=0, 
+    parser.add_argument('--NUM_WORKERS', '-j', default=8, 
                         type=int, help='Number of workers used in dataloading')
     # optimiser hyperparameters
     parser.add_argument('--OPTIM', default='SGD', 
                         type=str, help='Optimiser type')
     parser.add_argument('--RESUME', default=0, 
                         type=int, help='Resume from given iterations')
-    parser.add_argument('--MAX_ITERS', default=25000, 
+    parser.add_argument('--MAX_ITERS', default=30000, 
                         type=int, help='Number of training iterations')
-    parser.add_argument('--LR', '--learning-rate', 
+    parser.add_argument('-l','--LR', '--learning-rate', 
                         default=0.01, type=float, help='initial learning rate')
     parser.add_argument('--MOMENTUM', default=0.9, 
                         type=float, help='momentum')
-    parser.add_argument('--loss_type', default='focal', 
-                        type=str, help='loss_type')
-    parser.add_argument('--MILESTONES', default='10000,20000', 
+    parser.add_argument('--MILESTONES', default='15000,25000', 
                         type=str, help='Chnage the lr @')
     parser.add_argument('--GAMMAS', default='0.1,0.1', 
                         type=str, help='Gamma update for SGD')
@@ -82,7 +86,6 @@ def main():
                         type=str2bool, help='freeze bn layers if true or else keep updating bn layers')
     parser.add_argument('--FREEZE_UPTO', default=1, 
                         type=int, help='layer group number in ResNet up to which needs to be frozen')
-
     # Loss function matching threshold
     parser.add_argument('--POSTIVE_THRESHOLD', default=0.5, 
                         type=float, help='Min threshold for Jaccard index for matching')
@@ -92,9 +95,9 @@ def main():
     # Evaluation hyperparameters
     parser.add_argument('--EVAL_ITERS', default='30000', 
                         type=str, help='eval iterations')
-    parser.add_argument('--INTIAL_VAL', default=5000, 
+    parser.add_argument('--INTIAL_VAL', default=1000, 
                         type=int, help='Initial number of training iterations before evaluation')
-    parser.add_argument('--VAL_STEP', default=5000, 
+    parser.add_argument('--VAL_STEP', default=2500, 
                         type=int, help='Number of training iterations before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold')
@@ -128,12 +131,12 @@ def main():
                         type=int, help='eval iterations')
     
     # Progress logging
-    parser.add_argument('--LOG_START', default=149, 
+    parser.add_argument('--LOG_START', default=1, 
                         type=int, help='start loging after k steps for text/tensorboard') 
                         # Let initial ripples settle down
-    parser.add_argument('--LOG_STEP', default=10, 
+    parser.add_argument('--LOG_STEP', default=5, 
                         type=int, help='Log every k steps for text/tensorboard')
-    parser.add_argument('--TENSORBOARD', default=TRUE,
+    parser.add_argument('--TENSORBOARD', default=1,
                         type=str2bool, help='Use tensorboard for loss/evalaution visualization')
 
     # Program arguments
@@ -146,38 +149,35 @@ def main():
                     help='Location to root directory fo dataset') # /mnt/mars-fast/datasets/
     parser.add_argument('--SAVE_ROOT', default='/mnt/mercury-alpha/', 
                     help='Location to save checkpoint models') # /mnt/sun-gamma/datasets/
-    parser.add_argument('--MODEL_PATH', default='', 
-                    help='Location to where imagenet pretrained models exists') # /mnt/mars-fast/datasets/
+
 
     ## Parse arguments
     args = parser.parse_args()
 
     args = utils.set_args(args) # set directories and SUBSETS fo datasets
-
+    args.MULTI_GPUS = False if args.BATCH_SIZE == 1 else args.MULTI_GPUS
     ## set random seeds and global settings
     np.random.seed(args.MAN_SEED)
     torch.manual_seed(args.MAN_SEED)
     torch.cuda.manual_seed_all(args.MAN_SEED)
     torch.set_default_tensor_type('torch.FloatTensor')
 
-    args.exp_name = utils.create_exp_name(args)
-    args.SAVE_ROOT += args.DATASET+'/'
-    args.SAVE_ROOT = args.SAVE_ROOT+'cache/'+args.exp_name+'/'
+    args = utils.create_exp_name(args)
 
-    if not os.path.isdir(args.SAVE_ROOT): #if save directory doesn't exist create it
-        os.makedirs(args.SAVE_ROOT)
+    utils.setup_logger(args)
+    logger = utils.get_logger(__name__)
+    logger.info(sys.version)
 
-    assert args.mode in ['train','test','tubes'], 'mode must be from ' + ','.join(['train','test','tubes'])
-    if args.mode == 'train':
+    assert args.MODE in ['train','test','tubes'], 'MODE must be from ' + ','.join(['train','test','tubes'])
+    if args.MODE == 'train':
         args.SUBSETS = args.TRAIN_SUBSETS
         train_transform = transforms.Compose([
-                            #transforms.ColorJitter(brightness=0.10, contrast=0.10, saturation=0.10, hue=0.05),
-                            Resize(args.MIN_SIZE, args.MAX_SIZE),
-                            transforms.ToTensor(),
-                            transforms.Normalize(mean=args.MEANS, std=args.STDS)])
+                            vtf.ResizeClip(args.MIN_SIZE, args.MAX_SIZE),
+                            vtf.ToTensorStack(),
+                            vtf.Normalize(mean=args.MEANS, std=args.STDS)])
 
         train_dataset = Read(args, train=True, transform=train_transform)
-        print('Done Loading Dataset Train Dataset :::>>>\n',train_dataset.print_str)
+        logger.info('Done Loading Dataset Train Dataset')
         ## For validation set
         full_test = False
         args.SUBSETS = args.VAL_SUBSETS
@@ -188,49 +188,41 @@ def main():
         skip_step = 1
 
     val_transform = transforms.Compose([ 
-                        Resize(args.MIN_SIZE, args.MAX_SIZE),
-                        transforms.ToTensor(),
-                        transforms.Normalize(mean=args.MEANS,std=args.STDS)])
-    val_dataset = Read(args, train=False, transform=val_transform, skip_step=skip_step, full_test=full_test)
-    print('Done Loading Dataset Validation Dataset :::>>>\n',val_dataset.print_str)
+                        vtf.ResizeClip(args.MIN_SIZE, args.MAX_SIZE),
+                        vtf.ToTensorStack(),
+                        vtf.Normalize(mean=args.MEANS,std=args.STDS)])
+    
+    val_dataset = Read(args, train=False, transform=val_transform, full_test=full_test)
+    logger.info('Done Loading Dataset Validation Dataset')
 
-    args.agent = val_dataset.agent
-    args.action = val_dataset.action
-    args.duplex = val_dataset.duplex
-    args.triplet = val_dataset.triplet
-    args.loc = val_dataset.loc
-    args.num_agent = len(val_dataset.agent)
-    args.num_action = len(val_dataset.action)
-    args.num_duplex = len(val_dataset.duplex)
-    args.num_triplet = len(val_dataset.triplet)
-    args.num_loc = len(val_dataset.loc)
-    args.num_classes =  1 + args.num_agent+args.num_action+args.num_duplex+args.num_triplet+args.num_loc 
+    
+    args.num_classes =  val_dataset.num_classes
     # one for objectness
-    args.label_types = ['agent', 'action', 'duplex', 'triplet', 'loc']
-    args.num_classes_list = [args.num_agent, args.num_action, args.num_duplex, args.num_triplet, args.num_loc]
-    args.all_classes =  [args.agent, args.action, args.duplex, args.triplet, args.loc]
-    args.num_label_type = val_dataset.num_label_type
-    args.nlts = args.num_label_type
+    args.label_types = val_dataset.label_types
+    args.num_classes_list = val_dataset.num_classes_list
+    args.all_classes =  val_dataset.all_classes
+    args.num_label_types = val_dataset.num_label_types
+    args.num_ego_classes = val_dataset.num_ego_classes
+    args.ego_classes = val_dataset.ego_classes
     args.head_size = 256
 
-    if args.mode != 'tubes':
-        net = build_retinanet_shared_heads(args).cuda()
-
-        if args.multi_gpu:
-            print('\nLets do dataparallel\n')
+    if args.MODE != 'tubes':
+        net = build_retinanet(args).cuda()
+        if args.MULTI_GPUS:
+            logger.info('\nLets do dataparallel\n')
             net = torch.nn.DataParallel(net)
     
-    if args.mode == 'train':
-        if args.fbn:
-            if args.multi_gpu:
-                net.module.backbone_net.apply(utils.set_bn_eval)
+    if args.MODE == 'train':
+        if args.FBN:
+            if args.MULTI_GPUS:
+                net.module.backbone.apply(utils.set_bn_eval)
             else:
-                net.backbone_net.apply(utils.set_bn_eval)
+                net.backbone.apply(utils.set_bn_eval)
         train(args, net, train_dataset, val_dataset)
 
-    elif args.mode == 'test':
+    elif args.MODE == 'test':
         test(args, net, val_dataset)
-    elif args.mode == 'tubes':
+    elif args.MODE == 'tubes':
         build_tubes(args, val_dataset)
     
 

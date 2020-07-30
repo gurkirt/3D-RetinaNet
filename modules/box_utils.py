@@ -63,15 +63,14 @@ def match_anchors_wIgnore(gt_boxes, gt_labels, anchors, pos_th=0.5, nge_th=0.4, 
     # print(inds, num_mt)
     ## get indexes of first frame in seq for each microtube
     gt_labels = gt_labels[inds]
-    # print(gt_boxes)
-    # print(anchors[:10])
+    # print('gtb', gt_boxes)
+    # print('anchors', anchors[:10])
     
     for s in range(seq_len):
         seq_overlaps.append(jaccard(gt_boxes[inds+s, :], anchors))
 
-    
     overlaps = seq_overlaps[0]
-    # print(overlaps.max())
+    # print('overlap max ', overlaps.max())
     ## Compute average overlap
     for s in range(seq_len-1):
         overlaps = overlaps + seq_overlaps[s+1]
@@ -80,7 +79,7 @@ def match_anchors_wIgnore(gt_boxes, gt_labels, anchors, pos_th=0.5, nge_th=0.4, 
     best_anchor_overlap, best_anchor_idx = overlaps.max(1, keepdim=True)
 
     # if best_anchor_overlap.min().item()<0.25:
-    #     print('MIN VAL::',best_anchor_overlap.min().item())
+    #     print('MIN VAL::', best_anchor_overlap.min().item())
     #     print('lower than o.5', best_anchor_overlap, gt_boxes)
     # [1,num_anchors] best ground truth for each anchor
     best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True)

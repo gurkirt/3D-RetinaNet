@@ -1,6 +1,7 @@
 '''
 
-Authot Gurkirt Singh
+Author:: Gurkirt Singh
+
 '''
 
 import os
@@ -49,7 +50,8 @@ def voc_ap(rec, prec, use_07_metric=False):
 
 
 def pr_to_ap(pr):
-    """Compute AP given precision-recall
+    """
+    Compute AP given precision-recall
     pr is a Nx2 array with first row being precision and second row being recall
     """
 
@@ -274,6 +276,43 @@ def evaluate(gts, dets, all_classes, iou_thresh=0.5):
         aps_all.append(b)
         ap_strs.append(c)
     return aps, aps_all, ap_strs
+
+
+def evaluate_ego(gts, dets, classes):
+    
+    ap_strs = []
+    num_frames = gts.shape[0]
+    print('Evaluating for ', num_frames, 'frames')
+    ap_all = np.zeros(len(classes), dtype=np.float32)
+
+    # num_frames = len(gt_boxes)
+    # loop over each class 'cls'
+    for cls_ind, class_name in enumerate(classes):
+        scores = dets[:, cls_ind]
+        istp = np.zeros_like(gts)
+        istp[gts == cls_ind] = 1
+        det_count = num_frames
+        num_postives = np.sum(istp)
+        if num_postives < 1:
+            num_postives = 1
+        argsort_scores = np.argsort(-scores)  # sort in descending order
+        istp = istp[argsort_scores]  # reorder istp's on score sorting
+        fp = np.cumsum(istp == 0)  # get false positives
+        tp = np.cumsum(istp == 1)  # get  true positives
+        fp = fp.astype(np.float64)
+        tp = tp.astype(np.float64)
+        recall = tp / float(num_postives)  # compute recall
+        # compute precision
+        precision = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
+        # compute average precision using voc2007 metric
+        cls_ap = voc_ap(recall, precision)
+        ap_all[cls_ind] = cls_ap
+        # print(cls_ind,classes[cls_ind], cls_ap)
+        ap_str = class_name + ' : ' + \
+            str(num_postives) + ' : ' + str(det_count) + ' : ' + str(cls_ap)
+        ap_strs.append(ap_str)
+
+    return [np.mean(ap_all)], [ap_all], [ap_strs]
 
 
 def save_detection_framewise(det_boxes, image_ids, det_save_dir):

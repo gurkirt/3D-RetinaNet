@@ -8,17 +8,18 @@ import time
 import torch
 import numpy as np
 from modules import utils
-from modules.evaluation import evaluate
+import modules.evaluation as evaluate
 from modules.box_utils import decode
 from modules.utils import get_individual_labels
+
+logger = utils.get_logger(__name__)
 
 
 def validate(args, net,  val_data_loader, val_dataset, iteration_num):
     """Test a FPN network on an image database."""
-    iou_thresh = args.iou_thresh
-    print('Validating at ', iteration_num)
-    num_images = len(val_dataset)
-    num_classes = args.num_classes
+    iou_thresh = args.IOU_THRESH
+    logger.info('Validating at ' + str(iteration_num))
+    num_samples = len(val_dataset)
     
     print_time = True
     val_step = 20
@@ -26,64 +27,71 @@ def validate(args, net,  val_data_loader, val_dataset, iteration_num):
     torch.cuda.synchronize()
     ts = time.perf_counter()
     activation = torch.nn.Sigmoid().cuda()
-    if args.loss_type == 'mbox':
-        activation = torch.nn.Softmax(dim=2).cuda()
+
+    ego_pds = []
+    ego_gts = []
 
     det_boxes = []
     gt_boxes_all = []
-    for nlt in range(args.nlts):
+    for nlt in range(args.num_label_types):
         numc = args.num_classes_list[nlt]
         det_boxes.append([[] for _ in range(numc)])
         gt_boxes_all.append([])
 
     with torch.no_grad():
-        for val_itr, (images, batch_counts, gt_boxes, gt_targets, img_indexs, wh) in enumerate(val_data_loader):
+        for val_itr, (images, gt_boxes, gt_targets, ego_labels, batch_counts, img_indexs, wh) in enumerate(val_data_loader):
 
             torch.cuda.synchronize()
             t1 = time.perf_counter()
 
             batch_size = images.size(0)
+            
             images = images.cuda(0, non_blocking=True)
-            decoded_boxes, confidence = net(images)
+            decoded_boxes, confidence, ego_preds = net(images)
+            ego_preds = activation(ego_preds).cpu().numpy()
+            ego_labels = ego_labels.numpy()
             confidence = activation(confidence)
 
             if print_time and val_itr%val_step == 0:
                 torch.cuda.synchronize()
                 tf = time.perf_counter()
-                print('Forward Time {:0.3f}'.format(tf-t1))
+                logger.info('Forward Time {:0.3f}'.format(tf-t1))
             
+            seq_len = gt_targets.size(1)
             for b in range(batch_size):
-                width, height = wh[b][0], wh[b][1]
-                gt_boxes_batch = gt_boxes[b, :batch_counts[b]].numpy()
-                decoded_boxes_batch = decoded_boxes[b]
-                gt_labels_batch =  gt_targets[b, :batch_counts[b]].numpy()
-                cc = 1 
-                
-                for nlt in range(args.nlts):
-                    frame_gt = get_individual_labels(gt_boxes_batch, gt_labels_batch[:, nlt,:], nlt)
-                    gt_boxes_all[nlt].append(frame_gt)
-                    num_c = args.num_classes_list[nlt]
-                    
-                    for cl_ind in range(num_c):
-                        scores = confidence[b, :, cc].squeeze().clone()
-                        cc += 1
-                        cls_dets = utils.filter_detections(args, scores, decoded_boxes_batch)
-                        det_boxes[nlt][cl_ind].append(cls_dets)
-
-                count += 1
-            
+                for s in range(seq_len):
+                    if ego_labels[b,s]>-1:
+                        ego_pds.append(ego_preds[b,s,:])
+                        ego_gts.append(ego_labels[b,s])
+                    width, height = wh[b][0], wh[b][1]
+                    gt_boxes_batch = gt_boxes[b, s, :batch_counts[b, s],:].numpy()
+                    decoded_boxes_batch = decoded_boxes[b, s]
+                    gt_labels_batch =  gt_targets[b, s, :batch_counts[b, s]].numpy()
+                    cc = 0 
+                    for nlt in range(args.num_label_types):
+                        num_c = args.num_classes_list[nlt]
+                        frame_gt = get_individual_labels(gt_boxes_batch, gt_labels_batch[:,cc:cc+num_c])
+                        gt_boxes_all[nlt].append(frame_gt)
+                        
+                        for cl_ind in range(num_c):
+                            scores = confidence[b, s, :, cc].clone().squeeze()
+                            cc += 1
+                            cls_dets = utils.filter_detections(args, scores, decoded_boxes_batch)
+                            det_boxes[nlt][cl_ind].append(cls_dets)
+                count += 1 
 
             if print_time and val_itr%val_step == 0:
                 torch.cuda.synchronize()
                 te = time.perf_counter()
-                print('im_detect: {:d}/{:d} time taken {:0.3f}'.format(count, num_images, te-ts))
+                logger.info('detections done: {:d}/{:d} time taken {:0.3f}'.format(count, num_samples, te-ts))
                 torch.cuda.synchronize()
                 ts = time.perf_counter()
             if print_time and val_itr%val_step == 0:
                 torch.cuda.synchronize()
                 te = time.perf_counter()
-                print('NMS stuff Time {:0.3f}'.format(te - tf))
+                logger.info('NMS stuff Time {:0.3f}'.format(te - tf))
 
-    print('Evaluating detections for itration number ', iteration_num)
-    
-    return evaluate(gt_boxes_all, det_boxes, args.all_classes, iou_thresh=iou_thresh)
+    logger.info('Evaluating detections for itration number ' + str(iteration_num))
+    mAP, ap_all, ap_strs = evaluate.evaluate(gt_boxes_all, det_boxes, args.all_classes, iou_thresh=iou_thresh)
+    mAP_ego, ap_all_ego, ap_strs_ego = evaluate.evaluate_ego(np.asarray(ego_gts), np.asarray(ego_pds),  args.ego_classes)
+    return mAP + mAP_ego, ap_all + ap_all_ego, ap_strs + ap_strs_ego
