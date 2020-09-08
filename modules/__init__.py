@@ -10,11 +10,10 @@ class AverageMeter(object):
         self.count = 0
         
     def update(self, val, n=1):
-        if n==0:
-            n=1
-        self.val = val
-        if self.count == 0:
-            self.avg = self.val
-        else:
-            self.avg = self.avg*self.momentum + (1-self.momentum)* val
-        self.count += n
+        if n>0:
+            self.val = val
+            if self.count == 0:
+                self.avg = self.val
+            else:
+                self.avg = self.avg*self.momentum + (1-self.momentum)* val
+            self.count += n

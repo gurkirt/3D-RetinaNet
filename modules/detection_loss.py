@@ -144,7 +144,9 @@ class FocalLoss(nn.Module):
         masked_preds = ego_preds[mask].reshape(-1, numc) # Remove Ignore preds
         masked_labels = ego_labels[mask].reshape(-1) # Remove Ignore labels
         one_hot_labels = get_one_hot_labels(masked_labels, numc)
-        ego_loss = sigmoid_focal_loss(masked_preds, one_hot_labels, num_pos, self.alpha, self.gamma)
+        ego_loss = 0
+        if one_hot_labels.shape[0]>0:
+            ego_loss = sigmoid_focal_loss(masked_preds, one_hot_labels, one_hot_labels.shape[0], self.alpha, self.gamma)
         
         # print(regression_loss, cls_loss, ego_loss)
         return regression_loss, cls_loss/8.0 + ego_loss/4.0

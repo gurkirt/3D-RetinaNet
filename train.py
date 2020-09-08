@@ -4,14 +4,15 @@ import os
 import datetime
 import torch
 import math
-from modules import utils
+
 import torch.utils.data as data_utils
 from modules import  AverageMeter
 from data import custum_collate
 from modules.solver import get_optim
 from val import validate
-
+from modules import utils
 logger = utils.get_logger(__name__)
+
 
 def train(args, net, train_dataset, val_dataset):
     
@@ -71,7 +72,7 @@ def train(args, net, train_dataset, val_dataset):
     total_epochs = math.ceil(args.MAX_ITERS /  epoch_size)
     num_bpe = len(train_data_loader)
     while iteration <= args.MAX_ITERS:
-        for i, (images, gt_boxes, gt_labels, ego_labels, counts, img_indexs, wh) in enumerate(train_data_loader):
+        for _, (images, gt_boxes, gt_labels, ego_labels, counts, img_indexs, wh) in enumerate(train_data_loader):
             if iteration > args.MAX_ITERS:
                 break
             iteration += 1
@@ -98,11 +99,11 @@ def train(args, net, train_dataset, val_dataset):
 
             loc_loss = loss_l.item()
             conf_loss = loss_c.item()
-            if loc_loss>300:
+            if torch.isnan(loc_loss) or loc_loss>300:
                 lline = '\n\n\n We got faulty LOCATION loss {} {} \n\n\n'.format(loc_loss, conf_loss)
                 logger.info(lline)
                 loc_loss = 20.0
-            if conf_loss>300:
+            if torch.isnan(conf_loss) or  conf_loss>300:
                 lline = '\n\n\n We got faulty CLASSIFICATION loss {} {} \n\n\n'.format(loc_loss, conf_loss)
                 logger.info(lline)
                 conf_loss = 20.0
@@ -137,7 +138,7 @@ def train(args, net, train_dataset, val_dataset):
                 torch.save(net.state_dict(), '{:s}/model_{:06d}.pth'.format(args.SAVE_ROOT, iteration))
                 torch.save(optimizer.state_dict(), '{:s}/optimizer_{:06d}.pth'.format(args.SAVE_ROOT, iteration))
                 
-                net.eval() # switch net to evaluation mode
+                # switch net to evaluation mode
                 
                 mAP, ap_all, ap_strs = validate(args, net, val_data_loader, val_dataset, iteration)
                 label_types = args.label_types + ['ego_action']
@@ -158,7 +159,7 @@ def train(args, net, train_dataset, val_dataset):
                 torch.cuda.synchronize()
                 t0 = time.perf_counter()
                 prt_str = '\nValidation TIME::: {:0.3f}\n\n'.format(t0-tvs)
-                logger.info(ptr_str)
+                logger.info(prt_str)
 
                 net.train()
                 if args.FBN:

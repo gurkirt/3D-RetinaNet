@@ -8,11 +8,13 @@ import os
 import json
 import time
 import pdb
+import pickle
 import numpy as np
 import scipy.io as io  # to save detection as mat files
-from data.aarav import is_part_of_subsets, get_filtered_tubes
+from data.aarav import is_part_of_subsets, get_filtered_tubes, get_filtered_frames, get_av_actions
 from modules.tube_helper import get_tube_3Diou, make_det_tube
-
+from modules import utils
+logger = utils.get_logger(__name__)
 
 def voc_ap(rec, prec, use_07_metric=False):
     """ ap = voc_ap(rec, prec, [use_07_metric])
@@ -20,7 +22,6 @@ def voc_ap(rec, prec, use_07_metric=False):
     If use_07_metric is true, uses the
     VOC 07 11 point method (default:False).
     """
-    # print('voc_ap() - use_07_metric:=' + str(use_07_metric))
     if use_07_metric:
         # 11 point metric
         ap = 0.
@@ -46,7 +47,7 @@ def voc_ap(rec, prec, use_07_metric=False):
 
         # and sum (\Delta recall) * prec
         ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
-    return ap
+    return ap*100
 
 
 def pr_to_ap(pr):
@@ -64,13 +65,17 @@ def pr_to_ap(pr):
 def get_gt_of_cls(gt_boxes, cls):
     cls_gt_boxes = []
     for i in range(gt_boxes.shape[0]):
-        # print('something here', gt_boxes, gt_boxes.shape, len(gt_boxes.shape), gt_boxes.shape[-1])
         if len(gt_boxes.shape) > 1 and int(gt_boxes[i, -1]) == cls:
             cls_gt_boxes.append(gt_boxes[i, :-1])
     return np.asarray(cls_gt_boxes)
 
+def compute_iou_dict(det, cls_gt_boxes):
+    # print(cls_gt_boxes, type(cls_gt_boxes))
+    cls_gt_boxes = cls_gt_boxes.reshape(-1,4)
+    # print(cls_gt_boxes, type(cls_gt_boxes))
+    return compute_iou(det['box'], cls_gt_boxes)[0]
 
-def compute_iou(cls_gt_boxes, box):
+def compute_iou(box, cls_gt_boxes):
 
     ious = np.zeros(cls_gt_boxes.shape[0])
 
@@ -87,7 +92,6 @@ def compute_iou(cls_gt_boxes, box):
             intsc = iw*ih
         else:
             intsc = 0.0
-        # print (intsc)
         union = (gtbox[2] - gtbox[0]) * (gtbox[3] - gtbox[1]) + \
             (box[2] - box[0]) * (box[3] - box[1]) - intsc
         ious[m] = intsc/union
@@ -99,7 +103,7 @@ def evaluate_detections(gt_boxes, det_boxes, classes=[], iou_thresh=0.5):
 
     ap_strs = []
     num_frames = len(gt_boxes)
-    print('Evaluating for ', num_frames, 'frames')
+    logger.info('Evaluating for '+ str(num_frames) + ' frames')
     ap_all = np.zeros(len(classes), dtype=np.float32)
     # loop over each class 'cls'
     for cls_ind, class_name in enumerate(classes):
@@ -126,7 +130,7 @@ def evaluate_detections(gt_boxes, det_boxes, classes=[], iou_thresh=0.5):
                     if cls_gt_boxes.shape[0] > 0:
                         # if there is atleast one gt bounding for class cls is there in frame nf
                         # compute IOU between remaining gt boxes
-                        iou = compute_iou(cls_gt_boxes, box)
+                        iou = compute_iou(box, cls_gt_boxes)
                         # and detection boxes
                         # get the max IOU window gt index
                         maxid = np.argmax(iou)
@@ -158,13 +162,13 @@ def evaluate_detections(gt_boxes, det_boxes, classes=[], iou_thresh=0.5):
         # compute average precision using voc2007 metric
         cls_ap = voc_ap(recall, precision)
         ap_all[cls_ind] = cls_ap
-        # print(cls_ind,classes[cls_ind], cls_ap)
         ap_str = class_name + ' : ' + \
             str(num_postives) + ' : ' + str(det_count) + ' : ' + str(cls_ap)
         ap_strs.append(ap_str)
 
-    print('mean ap ', np.mean(ap_all))
-    return np.mean(ap_all), ap_all, ap_strs
+    mAP = np.mean(ap_all)
+    logger.info('mean ap '+ str(mAP))
+    return mAP, ap_all, ap_strs
 
 
 def filter_labels(labels, n):
@@ -175,165 +179,55 @@ def filter_labels(labels, n):
     return new_labels
 
 
-def evaluate_locations(gt_boxes, det_boxes, classes, iou_thresh=0.5):
-
-    ap_strs = []
-    num_frames = len(gt_boxes)
-    print('Evaluating for ', num_frames, 'frames')
-    ap_all = np.zeros(len(classes), dtype=np.float32)
-    num_c = len(classes)
-
-    scores = np.zeros((num_frames * 2000, num_c))
-    istp_all = np.zeros((num_frames * 2000, num_c))
-    det_count = 0
-    gt_count = 0.0
-    recall_count = 0.0
-    for nf in range(num_frames):  # loop over each frame 'nf'
-        # if len(gt_boxes[nf])>0 and len(det_boxes[cls_ind][nf]):
-        # get frame detections for class cls in nf
-        frame_det_boxes = np.copy(det_boxes[0][nf])
-        frame_gt_boxes = gt_boxes[nf][0]
-        frame_gt_labels = gt_boxes[nf][1]
-        # iou = compute_iou(frame_gt_boxes, box) # compute IOU between remaining gt boxes
-        gt_count += frame_det_boxes.shape[0]
-        # check if there are dection for class cls in nf frame
-        if frame_det_boxes.shape[0] > 0 and frame_gt_boxes.shape[0] > 0:
-            # sort in descending order
-            sorted_ids = np.argsort(-frame_det_boxes[:, -1])
-            for k in sorted_ids:  # start from best scoring detection of cls to end
-                box = frame_det_boxes[k, :4]  # detection bounfing box
-                # score = frame_det_boxes[k,-1] # detection score
-                # we can only find a postive detection
-                if frame_gt_boxes.shape[0] > 0:
-                    # compute IOU between remaining gt boxes
-                    iou = compute_iou(frame_gt_boxes, box)
-                    # and detection boxes
-                    maxid = np.argmax(iou)  # get the max IOU window gt index
-                    # check is max IOU is greater than detection threshold
-                    if iou[maxid] >= iou_thresh:
-                        true_labels = filter_labels(frame_gt_labels, maxid)
-                        recall_count += 1
-                        for cc in range(num_c):
-                             #ispositive = False
-                            if cc in true_labels:
-                                # set current detection index (det_count) ispositive = True
-                                istp_all[det_count, cc] = 1
-                                # print('here')
-                            # if det_count == 0:
-                            #     pdb.set_trace()
-                            scores[det_count, cc] = frame_det_boxes[k, cc+4]
-
-                        # remove assigned gt box
-                        frame_gt_boxes = np.delete(frame_gt_boxes, maxid, 0)
-                        frame_gt_labels = np.delete(frame_gt_labels, maxid, 0)
-
-                        det_count += 1
-                else:
-                    break
-
-    gt_count = max(1, gt_count)
-    print_str = '\n\nRecalled {:d} out of {:d} ground truhs Accuracy is {:0.2f} % \n\n'.format(
-        int(recall_count), int(gt_count), 100.0*recall_count/gt_count)
-    scores = scores[:det_count, :]
-    istp = istp_all[:det_count, :]
-    # pdb.set_trace()
-    for cls_ind in range(num_c):
-        cls_scores = scores[:, cls_ind]
-        argsort_scores = np.argsort(-cls_scores)  # sort in descending order
-        # reorder istp's on score sorting
-        istp = istp_all[argsort_scores, cls_ind].copy()
-        fp = np.cumsum(istp == 0)  # get false positives
-        tp = np.cumsum(istp == 1)  # get  true positives
-        fp = fp.astype(np.float64)
-        tp = tp.astype(np.float64)
-        num_postives = max(1, np.sum(istp))
-        recall = tp / num_postives  # compute recall
-        # compute precision
-        precision = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
-        # pdb.set_trace()
-        # compute average precision using voc2007 metric
-        cls_ap = voc_ap(recall, precision)
-        ap_all[cls_ind] = cls_ap
-        # print(cls_ind,classes[cls_ind], cls_ap)
-        ap_str = str(classes[cls_ind]) + ' : ' + str(num_postives) + \
-            ' : ' + str(det_count) + ' : ' + str(cls_ap)
-        ap_strs.append(ap_str)
-    ap_strs[-1] += print_str
-    print('mean ap ', np.mean(np.asarray(ap_all)))
-    return np.mean(ap_all), ap_all, ap_strs
-
-
 def evaluate(gts, dets, all_classes, iou_thresh=0.5):
     # np.mean(ap_all), ap_all, ap_strs
     aps, aps_all, ap_strs = [], [], []
-    for nlt in range(len(all_classes)):
-        # if nlt<3:
+    for nlt in range(len(gts)):
         a, b, c = evaluate_detections(
             gts[nlt], dets[nlt], all_classes[nlt], iou_thresh)
-        # else: # evlauate locations
-        # a, b, c = evaluate_locations(gts[nlt], dets[nlt], all_classes[nlt], iou_thresh)
         aps.append(a)
         aps_all.append(b)
         ap_strs.append(c)
     return aps, aps_all, ap_strs
 
 
+def get_class_ap_from_scores(scores, istp, num_postives):
+    # num_postives = np.sum(istp)
+    if num_postives < 1:
+        num_postives = 1
+    argsort_scores = np.argsort(-scores)  # sort in descending order
+    istp = istp[argsort_scores]  # reorder istp's on score sorting
+    fp = np.cumsum(istp == 0)  # get false positives
+    tp = np.cumsum(istp == 1)  # get  true positives
+    fp = fp.astype(np.float64)
+    tp = tp.astype(np.float64)
+    recall = tp / float(num_postives)  # compute recall
+    # compute precision
+    precision = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
+    # compute average precision using voc2007 metric
+    cls_ap = voc_ap(recall, precision)
+    return cls_ap
+
+
 def evaluate_ego(gts, dets, classes):
-    
     ap_strs = []
     num_frames = gts.shape[0]
-    print('Evaluating for ', num_frames, 'frames')
+    logger.info('Evaluating for ' + str(num_frames) + ' frames')
     ap_all = np.zeros(len(classes), dtype=np.float32)
 
-    # num_frames = len(gt_boxes)
-    # loop over each class 'cls'
     for cls_ind, class_name in enumerate(classes):
         scores = dets[:, cls_ind]
         istp = np.zeros_like(gts)
         istp[gts == cls_ind] = 1
         det_count = num_frames
         num_postives = np.sum(istp)
-        if num_postives < 1:
-            num_postives = 1
-        argsort_scores = np.argsort(-scores)  # sort in descending order
-        istp = istp[argsort_scores]  # reorder istp's on score sorting
-        fp = np.cumsum(istp == 0)  # get false positives
-        tp = np.cumsum(istp == 1)  # get  true positives
-        fp = fp.astype(np.float64)
-        tp = tp.astype(np.float64)
-        recall = tp / float(num_postives)  # compute recall
-        # compute precision
-        precision = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
-        # compute average precision using voc2007 metric
-        cls_ap = voc_ap(recall, precision)
+        cls_ap = get_class_ap_from_scores(scores, istp, num_postives)
         ap_all[cls_ind] = cls_ap
-        # print(cls_ind,classes[cls_ind], cls_ap)
         ap_str = class_name + ' : ' + \
             str(num_postives) + ' : ' + str(det_count) + ' : ' + str(cls_ap)
         ap_strs.append(ap_str)
 
     return [np.mean(ap_all)], [ap_all], [ap_strs]
-
-
-def save_detection_framewise(det_boxes, image_ids, det_save_dir):
-    # det_save_dir = '/mnt/mars-beta/gur-workspace/use-ssd-data/UCF101/detections/RGB-01-{:06d}/'.format(iteration)
-    print('Saving detections to', det_save_dir)
-    num_images = len(image_ids)
-    for idx in range(num_images):
-        img_id = image_ids[idx]
-        save_path = det_save_dir+img_id[:-5]
-        if not os.path.isdir(save_path):
-            os.system('mkdir -p '+save_path)
-        fid = open(det_save_dir+img_id+'.txt', 'w')
-        for cls_ind in range(len(det_boxes)):
-            frame_det_boxes = det_boxes[cls_ind][idx]
-            for d in range(len(frame_det_boxes)):
-                line = str(cls_ind+1)
-                for k in range(5):
-                    line += ' {:f}'.format(frame_det_boxes[d, k])
-                line += '\n'
-                fid.write(line)
-        fid.close()
 
 
 def get_gt_tubes(final_annots, subset, label_type):
@@ -371,6 +265,54 @@ def get_gt_class_tubes(tubes, cl_id):
                 class_tubes[video].append(tube)
     return class_tubes
 
+def compute_class_ap(class_dets, class_gts, match_func, iou_thresh):
+
+    pr = np.empty((len(class_dets) + 1, 2), dtype=np.float32)
+    pr[0, 0] = 1.0
+    pr[0, 1] = 0.0
+
+    fn = max(1, sum([len(class_gts[iid])
+                        for iid in class_gts]))  # false negatives
+    num_postives = fn
+    fp = 0  # false positives
+    tp = 0  # true positives
+    
+    scores = np.zeros(len(class_dets))
+    istp = np.zeros(len(class_dets))
+
+    inv_det_scores = np.asarray([-det[1]['score'] for det in class_dets])
+    indexs = np.argsort(inv_det_scores)
+    for count, det_id in enumerate(indexs):
+        is_positive = False
+        detection = class_dets[det_id]
+        iid, det = detection
+        score = det['score']
+        # pdb.set_trace()
+        if len(class_gts[iid]) > 0:
+            ious = np.asarray([match_func(det, gt)
+                                for gt in class_gts[iid]])
+            # print(ious)
+            max_iou_id = np.argmax(ious)
+            if ious[max_iou_id] >= iou_thresh:
+                is_positive = True
+                del class_gts[iid][max_iou_id]
+        
+        scores[count] = score
+    
+        if is_positive:
+            istp[count] = 1
+            tp += 1
+            fn -= 1
+        else:
+            fp += 1
+
+        pr[count+1, 0] = float(tp) / float(tp + fp)
+        pr[count+1, 1] = float(tp) / float(tp + fn)
+    
+    class_ap = float(100*pr_to_ap(pr))
+
+    return class_ap, num_postives, count
+
 
 def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou_thresh=0.2):
 
@@ -379,7 +321,6 @@ def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou
 
     with open(det_file, 'r') as fff:
         detections = json.load(fff)
-
 
     ap_all = []
     ap_strs = []
@@ -395,46 +336,94 @@ def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou
         class_dets = get_det_class_tubes(det_tubes, cl_id)
         class_gts = get_gt_class_tubes(gt_tubes, cl_id)
 
-        pr = np.empty((len(class_dets) + 1, 2), dtype=np.float32)
-        pr[0, 0] = 1.0
-        pr[0, 1] = 0.0
+        class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, get_tube_3Diou, iou_thresh)
 
-        fn = max(1, sum([len(class_gts[video])
-                         for video in class_gts]))  # false negatives
-        num_postives = fn
-        fp = 0  # false positives
-        tp = 0  # true positives
-
-        inv_det_scores = np.asarray([-det[1]['score'] for det in class_dets])
-        indexs = np.argsort(inv_det_scores)
-        for count, det_id in enumerate(indexs):
-            is_positive = False
-            detection = class_dets[det_id]
-            video, det_tube = detection
-            if len(class_gts[video]) > 0:
-                ious = np.asarray([get_tube_3Diou(det_tube, gt_tube)
-                                   for gt_tube in class_gts[video]])
-                max_iou_id = np.argmax(ious)
-                if ious[max_iou_id] >= iou_thresh:
-                    is_positive = True
-                    del class_gts[video][max_iou_id]
-
-            if is_positive:
-                tp += 1
-                fn -= 1
-            else:
-                fp += 1
-
-            pr[count+1, 0] = float(tp) / float(tp + fp)
-            pr[count+1, 1] = float(tp) / float(tp + fn)
-
-        class_ap = float(100*pr_to_ap(pr))
         sap += class_ap
         ap_all.append(class_ap)
-        # print(cls_ind,classes[cls_ind], cls_ap)
         ap_str = class_name + ' : ' + str(num_postives) + \
             ' : ' + str(count) + ' : ' + str(class_ap)
         ap_strs.append(ap_str)
     mAP = sap/len(classes)
     ap_strs.append('\nMean AP:: {:0.2f}'.format(mAP))
     return mAP, ap_all, ap_strs
+
+
+def get_gt_frames(final_annots, subset, label_type):
+    """Get video list form ground truth videos used in subset 
+    and their ground truth frames """
+
+    video_list = []
+    frames = {}
+    for videoname in final_annots['db']:
+        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], [subset]):
+            video_list.append(videoname)
+            frames = get_filtered_frames(
+                label_type, final_annots, videoname, frames)
+
+    return video_list, frames
+
+
+def get_det_class_frames(dets, cl_id, frame_ids):
+    class_dets = []
+    for frame_id in dets:
+        if frame_id in frame_ids:
+            all_frames_dets = dets[frame_id][cl_id]
+            for i in range(all_frames_dets.shape[0]):
+                det = {'box':all_frames_dets[i,:4], 'score':all_frames_dets[i,4]}
+                class_dets.append([frame_id, det])
+    return class_dets
+
+
+def get_gt_class_frames(gts, cl_id):
+    frames = {}
+    for frame_id, frame in gts.items():
+        boxes = []
+        for anno in frame:
+            if cl_id in anno[1]:
+                boxes.append(anno[0].copy())
+        frames[frame_id] = boxes
+
+    return frames
+
+
+def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5):
+    with open(anno_file, 'r') as fff:
+        final_annots = json.load(fff)
+
+    with open(det_file, 'rb') as fff:
+        detections = pickle.load(fff)
+
+    results = {}
+    label_types = ['agent_ness'] + final_annots['label_types']
+    
+    for nlt, label_type in enumerate(label_types):
+        ap_all = []
+        ap_strs = []
+        sap = 0.0
+        _, gt_frames = get_gt_frames(final_annots, subset, label_type)
+        
+        if nlt==0:
+            classes = ['agent_ness']
+        else:
+            classes = final_annots[label_type+'_labels']
+        
+        for cl_id, class_name in enumerate(classes):
+            ## gather gt of class "class_name" from frames which are not marked igonre
+            class_gts = get_gt_class_frames(gt_frames, cl_id)
+            frame_ids = [f for f in class_gts.keys()]
+            ## gather detection from only that are there in gt or not marked ignore
+            class_dets = get_det_class_frames(detections[label_type], cl_id, frame_ids) 
+            
+            class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, compute_iou_dict, iou_thresh)
+
+            sap += class_ap
+            ap_all.append(class_ap)
+            ap_str = class_name + ' : ' + str(num_postives) + \
+                ' : ' + str(count) + ' : ' + str(class_ap)
+            logger.info(ap_str)
+            ap_strs.append(ap_str)
+        mAP = sap/len(classes)
+        ap_strs.append('\n'+label_type+' Mean AP:: {:0.2f}'.format(mAP))
+        results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs}
+    
+    return results

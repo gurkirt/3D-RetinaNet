@@ -128,7 +128,7 @@ class RetinaNet(nn.Module):
                     # torch.stack([decode(flat_loc[b], ancohor_boxes) for b in range(flat_loc.shape[0])], 0),
                     temp_l.append(decode(flat_loc[b, s], ancohor_boxes))
                 decoded_boxes.append(torch.stack(temp_l, 0))
-            return torch.stack(decoded_boxes, 0), flat_conf
+            return torch.stack(decoded_boxes, 0), flat_conf, ego_preds
 
 
     def make_features(self,  shared_heads):

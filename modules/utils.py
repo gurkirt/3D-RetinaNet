@@ -68,7 +68,7 @@ def set_args(args):
     if len(args.VAL_SUBSETS) < 1:
         args.VAL_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
     if len(args.TEST_SUBSETS) < 1:
-        args.TEST_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
+        # args.TEST_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
         args.TEST_SUBSETS.append('test')
     
     for subsets in [args.TRAIN_SUBSETS, args.VAL_SUBSETS, args.TEST_SUBSETS]:
@@ -167,25 +167,37 @@ def filter_detections(args, scores, decoded_boxes_batch):
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
     return cls_dets
 
+def filter_detections(args, scores, decoded_boxes_batch):
+    c_mask = scores.gt(args.CONF_THRESH)  # greater than minmum threshold
+    scores = scores[c_mask].squeeze()
+    if scores.dim() == 0 or scores.shape[0] == 0:
+        return np.asarray([])
+    
+    boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
+    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*20)  # idsn - ids after nms
+    scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
+    boxes = boxes[ids[:min(args.TOPK,counts)]].cpu().numpy()
+    cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
+    return cls_dets
+
 
 def filter_detections_with_confidences(args, scores, decoded_boxes_batch, confidences):
     c_mask = scores.gt(args.CONF_THRESH)  # greater than minmum threshold
     scores = scores[c_mask].squeeze()
     if scores.dim() == 0 or scores.shape[0] == 0:
-        return np.asarray([]), np.asarray([])
+        return np.zeros((0,200))
     
     boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
     numc = confidences.shape[-1]
-    confidences_ = confidences[c_mask,:].clone().view(-1, numc)
-    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*20)  # idsn - ids after nms
+    confidences = confidences[c_mask,:].clone().view(-1, numc)
+    ids, counts = nms(boxes, scores, args.NMS_THRESH, 2000)  # idsn - ids after nms
     scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
-    boxes = boxes[ids[:min(args.TOPK,counts)]].cpu().numpy()
-    confidences_ = confidences_[ids[:min(args.TOPK,counts)]].cpu().numpy()
+    boxes = boxes[ids[:min(args.TOPK,counts)],:].cpu().numpy()
+    confidences = confidences[ids[:min(args.TOPK, counts)],:].cpu().numpy()
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
-    save_data = np.hstack((cls_dets, confidences_)).astype(np.float32)
+    save_data = np.hstack((cls_dets, confidences[:,1:])).astype(np.float32)
 
-    return cls_dets, save_data
-
+    return save_data
 
 def eval_strings():
     return ["Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = ",

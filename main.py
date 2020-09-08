@@ -10,17 +10,17 @@ from data import Read
 from torchvision import transforms
 import data.transforms as vtf
 from models.retinanet import build_retinanet
-from test import test
-from build_tubes import build_tubes
+from gen_dets import gen_dets, eval_framewise_dets
+from tubes import build_eval_tubes
+from val import val
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
-
 def main():
     parser = argparse.ArgumentParser(description='Training single stage FPN with OHEM, resnet as backbone')
     parser.add_argument('--MODE', default='train', 
-                        help='MODE can be train or test define SUBSETS accordingly, build tubes')
+                        help='MODE can be train, gen_dets, eval_frames, eval_tubes define SUBSETS accordingly, build tubes')
     # Name of backbone network, e.g. resnet18, resnet34, resnet50, resnet101 resnet152 are supported
     parser.add_argument('--ARCH', default='resnet50', 
                         type=str, help='pretrained base model')
@@ -51,7 +51,7 @@ def main():
                         type=str,help='Training SUBSETS seprated by ,')
     parser.add_argument('--VAL_SUBSETS', default='', 
                         type=str,help='Validation SUBSETS seprated by ,')
-    parser.add_argument('--TEST_SUBSETS', default='', 
+    parser.add_argument('--TEST_SUBSETS', default='val_3', 
                         type=str,help='Testing SUBSETS seprated by ,')
     # Input size of image only 600 is supprted at the moment 
     parser.add_argument('--MIN_SIZE', default=416, 
@@ -101,7 +101,7 @@ def main():
                         type=int, help='Number of training iterations before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold')
-    parser.add_argument('--CONF_THRESH', default=0.05, 
+    parser.add_argument('--CONF_THRESH', default=0.01, 
                         type=float, help='Confidence threshold for evaluation')
     parser.add_argument('--NMS_THRESH', default=0.45, 
                         type=float, help='NMS threshold')
@@ -127,7 +127,7 @@ def main():
     parser.add_argument('--COMPUTE_TUBES', default=False, type=str2bool, help='eval iterations')
     parser.add_argument('--TUBES_ALPHA', default=5,
                         type=float, help='eval iterations')
-    parser.add_argument('--TUBE_TOPK', default=3,
+    parser.add_argument('--TUBES_TOPK', default=3,
                         type=int, help='eval iterations')
     
     # Progress logging
@@ -168,50 +168,58 @@ def main():
     logger = utils.get_logger(__name__)
     logger.info(sys.version)
 
-    assert args.MODE in ['train','test','tubes'], 'MODE must be from ' + ','.join(['train','test','tubes'])
+    assert args.MODE in ['train','val','gen_dets','eval_frames', 'eval_tubes'], 'MODE must be from ' + ','.join(['train','test','tubes'])
+    
     if args.MODE == 'train':
         args.SUBSETS = args.TRAIN_SUBSETS
         train_transform = transforms.Compose([
                             vtf.ResizeClip(args.MIN_SIZE, args.MAX_SIZE),
                             vtf.ToTensorStack(),
                             vtf.Normalize(mean=args.MEANS, std=args.STDS)])
-
-        train_dataset = Read(args, train=True, transform=train_transform)
+        train_dataset = Read(args, train=True, skip_step=args.SEQ_LEN, transform=train_transform)
         logger.info('Done Loading Dataset Train Dataset')
         ## For validation set
         full_test = False
         args.SUBSETS = args.VAL_SUBSETS
-        skip_step = 3
+        skip_step = args.SEQ_LEN*4
     else:
-        args.SUBSETS = args.TEST_SUBSETS
-        full_test=True
-        skip_step = 1
+        args.MAX_SEQ_STEP = 1
+        args.SUBSETS = args.TEST_SUBSETS + args.VAL_SUBSETS
+        full_test = args.MODE != 'train'
+        args.skip_beggning = 0
+        args.skip_ending = 0
+        if args.MODEL_TYPE == 'C2D':
+            skip_step = args.SEQ_LEN
+        else:
+            skip_step = args.SEQ_LEN/2
+        # skip_step = args.SEQ_LEN*8
+
 
     val_transform = transforms.Compose([ 
                         vtf.ResizeClip(args.MIN_SIZE, args.MAX_SIZE),
                         vtf.ToTensorStack(),
                         vtf.Normalize(mean=args.MEANS,std=args.STDS)])
     
-    val_dataset = Read(args, train=False, transform=val_transform, full_test=full_test)
+
+    val_dataset = Read(args, train=False, transform=val_transform, skip_step=skip_step, full_test=full_test)
     logger.info('Done Loading Dataset Validation Dataset')
 
-    
     args.num_classes =  val_dataset.num_classes
     # one for objectness
     args.label_types = val_dataset.label_types
-    args.num_classes_list = val_dataset.num_classes_list
-    args.all_classes =  val_dataset.all_classes
     args.num_label_types = val_dataset.num_label_types
+    args.all_classes =  val_dataset.all_classes
+    args.num_classes_list = val_dataset.num_classes_list
     args.num_ego_classes = val_dataset.num_ego_classes
     args.ego_classes = val_dataset.ego_classes
     args.head_size = 256
 
-    if args.MODE != 'tubes':
+    if args.MODE in ['train', 'val','gen_dets']:
         net = build_retinanet(args).cuda()
         if args.MULTI_GPUS:
             logger.info('\nLets do dataparallel\n')
             net = torch.nn.DataParallel(net)
-    
+
     if args.MODE == 'train':
         if args.FBN:
             if args.MULTI_GPUS:
@@ -219,11 +227,15 @@ def main():
             else:
                 net.backbone.apply(utils.set_bn_eval)
         train(args, net, train_dataset, val_dataset)
-
-    elif args.MODE == 'test':
-        test(args, net, val_dataset)
-    elif args.MODE == 'tubes':
-        build_tubes(args, val_dataset)
+    elif args.MODE == 'val':
+        val(args, net, val_dataset)
+    elif args.MODE == 'gen_dets':
+        gen_dets(args, net, val_dataset)
+        eval_framewise_dets(args, val_dataset)
+    elif args.MODE == 'eval_frames':
+        eval_framewise_dets(args, val_dataset)
+    elif args.MODE == 'eval_tubes':
+        build_eval_tubes(args, val_dataset)
     
 
 if __name__ == "__main__":
