@@ -33,7 +33,7 @@ class anchorBox(torch.nn.Module):
     """Compute anchorbox coordinates in center-offset form for each source
     feature map.
     """
-    def __init__(self, anchor_type = 'pdf9', sizes = [32, 64, 128, 256, 512],
+    def __init__(self, sizes = [32, 64, 128, 256, 512],
                         ratios = np.asarray([0.5, 1 / 1., 2.0]),
                         strides = [8, 16, 32, 64, 128],
                         scales = np.array([1, 1.25992, 1.58740])):
@@ -43,8 +43,6 @@ class anchorBox(torch.nn.Module):
         self.ratios = ratios
         self.scales = scales
         self.strides = strides
-        if anchor_type != 'pdf9':
-            self.scales = np.array([2 ** 0,])
         self.ar = len(self.ratios)*len(self.ratios)
         self.cell_anchors = BufferList(self._get_cell_anchors())
         
@@ -71,15 +69,17 @@ class anchorBox(torch.nn.Module):
 
         # initialize output anchors
         anchors = np.zeros((num_anchors, 4))
-
+        
+        print(self.scales)
         # scale base_size
         anchors[:, 2:] = base_size * np.tile(self.scales, (2, len(self.ratios))).T
-
+        print(anchors)
         # compute areas of anchors
         areas = anchors[:, 2] * anchors[:, 3]
 
         anchors[:, 2] = np.sqrt(areas / np.repeat(self.ratios, len(self.scales)))
         anchors[:, 3] = anchors[:, 2] * np.repeat(self.ratios, len(self.scales))
+        print(anchors)
         # transform from (x_ctr, y_ctr, w, h) -> (x1, y1, x2, y2)
         anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
         anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T

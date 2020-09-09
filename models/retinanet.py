@@ -48,6 +48,8 @@ class RetinaNet(nn.Module):
         # TODO: implement __call__ in
 
         self.anchors = anchorBox()
+        print('Cell anchors\n', self.anchors.cell_anchors)
+        pdb.set_trace()
         self.ar = self.anchors.ar
         args.ar = self.ar
         self.use_bias = True
