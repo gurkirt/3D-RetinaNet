@@ -99,11 +99,11 @@ def train(args, net, train_dataset, val_dataset):
 
             loc_loss = loss_l.item()
             conf_loss = loss_c.item()
-            if torch.isnan(loc_loss) or loc_loss>300:
+            if math.isnan(loc_loss) or loc_loss>300:
                 lline = '\n\n\n We got faulty LOCATION loss {} {} \n\n\n'.format(loc_loss, conf_loss)
                 logger.info(lline)
                 loc_loss = 20.0
-            if torch.isnan(conf_loss) or  conf_loss>300:
+            if math.isnan(conf_loss) or  conf_loss>300:
                 lline = '\n\n\n We got faulty CLASSIFICATION loss {} {} \n\n\n'.format(loc_loss, conf_loss)
                 logger.info(lline)
                 conf_loss = 20.0

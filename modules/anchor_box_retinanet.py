@@ -2,38 +2,13 @@ import torch
 from math import sqrt as sqrt
 from itertools import product as product
 import numpy as np
-
-# from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/modeling/rpn/anchor_generator.py
-class BufferList(torch.nn.Module):
-    """
-    
-    Similar to nn.ParameterList, but for buffers
-    
-    """
-
-    def __init__(self, buffers=None):
-        super(BufferList, self).__init__()
-        if buffers is not None:
-            self.extend(buffers)
-
-    def extend(self, buffers):
-        offset = len(self)
-        for i, buffer in enumerate(buffers):
-            self.register_buffer(str(offset + i), buffer)
-        return self
-
-    def __len__(self):
-        return len(self._buffers)
-
-    def __iter__(self):
-        return iter(self._buffers.values())
-
+from modules.utils import BufferList
 
 class anchorBox(torch.nn.Module):
     """Compute anchorbox coordinates in center-offset form for each source
     feature map.
     """
-    def __init__(self, sizes = [32, 64, 128, 256, 512],
+    def __init__(self, sizes = [20, 48, 112, 256, 512],
                         ratios = np.asarray([0.5, 1 / 1., 2.0]),
                         strides = [8, 16, 32, 64, 128],
                         scales = np.array([1, 1.25992, 1.58740])):
@@ -92,8 +67,8 @@ class anchorBox(torch.nn.Module):
         for size, stride, base_anchors in zip(grid_sizes, self.strides, self.cell_anchors):
             grid_height, grid_width = size
             device = base_anchors.device
-            shifts_x = torch.arange(0, grid_width, dtype=torch.float32).cuda()
-            shifts_y = torch.arange(0, grid_height, dtype=torch.float32).cuda() 
+            shifts_x = torch.arange(0, grid_width, dtype=torch.float32, device=device)
+            shifts_y = torch.arange(0, grid_height, dtype=torch.float32, device=device)
             shift_y, shift_x = torch.meshgrid(shifts_y, shifts_x) 
             shift_x = (shift_x.reshape(-1) + 0.5) * stride
             shift_y = (shift_y.reshape(-1) + 0.5) * stride

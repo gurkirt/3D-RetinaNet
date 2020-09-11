@@ -77,7 +77,7 @@ def get_filtered_tubes(label_key, final_annots, videoname):
                     for bi in range(4):
                         assert 0<=box[bi]<=1.01, box
                         box[bi] = min(1.0, max(0, box[bi]))
-                        box[bi] = box[bi]*576 if bi % 2 == 0 else box[bi]*416
+                        # box[bi] = box[bi]*576 if bi % 2 == 0 else box[bi]*416
 
                     boxes.append(box)
             else:
@@ -112,7 +112,7 @@ def get_filtered_frames(label_key, final_annots, videoname, filtered_gts):
                     for bi in range(4):
                         assert 0<=box[bi]<=1.01, box
                         box[bi] = min(1.0, max(0, box[bi]))
-                        box[bi] = box[bi]*554 if bi % 2 == 0 else box[bi]*416
+                        # box[bi] = box[bi]*554 if bi % 2 == 0 else box[bi]*416
                     if label_key == 'agent_ness':
                         filtered_ids = [0]
                     else:
@@ -169,6 +169,7 @@ class Read(tutils.data.Dataset):
     def __init__(self, args, train=True, input_type='rgb', transform=None, 
                 skip_step=1, full_test=False):
 
+        self.ANCHOR_TYPE =  args.ANCHOR_TYPE 
         self.DATASET = args.DATASET
         self.SUBSETS = args.SUBSETS
         self.SEQ_LEN = args.SEQ_LEN
@@ -357,16 +358,17 @@ class Read(tutils.data.Dataset):
         clip = self.transform(images)
         height, width = clip.shape[-2:]
         wh = [height, width]
-        
-        for bb, boxes in enumerate(all_boxes):
-            if boxes.shape[0]>0:
-                if boxes[0,0]>1:
-                    print(bb, videoname)
-                    pdb.set_trace()
-                boxes[:, 0] *= width # width x1
-                boxes[:, 2] *= width # width x2
-                boxes[:, 1] *= height # height y1
-                boxes[:, 3] *= height # height y2
+        # print('image', wh)
+        if self.ANCHOR_TYPE == 'RETINA':
+            for bb, boxes in enumerate(all_boxes):
+                if boxes.shape[0]>0:
+                    if boxes[0,0]>1:
+                        print(bb, videoname)
+                        pdb.set_trace()
+                    boxes[:, 0] *= width # width x1
+                    boxes[:, 2] *= width # width x2
+                    boxes[:, 1] *= height # height y1
+                    boxes[:, 3] *= height # height y2
 
         return clip, all_boxes, labels, ego_labels, index, wh, self.num_classes
 
@@ -413,5 +415,6 @@ def custum_collate(batch):
 
     # images = torch.stack(images, 0)
     images = get_clip_list_resized(images)
+    # print(images.shape)
     return images, new_boxes, new_targets, torch.stack(ego_targets,0), \
             torch.LongTensor(counts), image_ids, torch.stack(whs,0)

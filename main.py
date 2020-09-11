@@ -23,9 +23,11 @@ def main():
                         help='MODE can be train, gen_dets, eval_frames, eval_tubes define SUBSETS accordingly, build tubes')
     # Name of backbone network, e.g. resnet18, resnet34, resnet50, resnet101 resnet152 are supported
     parser.add_argument('--ARCH', default='resnet50', 
-                        type=str, help='pretrained base model')
+                        type=str, help=' base arch')
     parser.add_argument('--MODEL_TYPE', default='C2D',
-                        type=str, help='pretrained base model')
+                        type=str, help=' base model')
+    parser.add_argument('--ANCHOR_TYPE', default='RETINA',
+                        type=str, help='type of anchors to be used in model')
     parser.add_argument('--MODEL_PATH', default='',
                         help='Location to where imagenet pretrained models exists')  # /mnt/mars-fast/datasets/
     parser.add_argument('--SEQ_LEN', default=4,
@@ -101,7 +103,7 @@ def main():
                         type=int, help='Number of training iterations before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold')
-    parser.add_argument('--CONF_THRESH', default=0.01, 
+    parser.add_argument('--CONF_THRESH', default=0.05, 
                         type=float, help='Confidence threshold for evaluation')
     parser.add_argument('--NMS_THRESH', default=0.45, 
                         type=float, help='NMS threshold')
@@ -131,10 +133,10 @@ def main():
                         type=int, help='eval iterations')
     
     # Progress logging
-    parser.add_argument('--LOG_START', default=1, 
+    parser.add_argument('--LOG_START', default=0, 
                         type=int, help='start loging after k steps for text/tensorboard') 
                         # Let initial ripples settle down
-    parser.add_argument('--LOG_STEP', default=5, 
+    parser.add_argument('--LOG_STEP', default=1, 
                         type=int, help='Log every k steps for text/tensorboard')
     parser.add_argument('--TENSORBOARD', default=1,
                         type=str2bool, help='Use tensorboard for loss/evalaution visualization')
@@ -181,18 +183,18 @@ def main():
         ## For validation set
         full_test = False
         args.SUBSETS = args.VAL_SUBSETS
-        skip_step = args.SEQ_LEN*4
+        skip_step = args.SEQ_LEN*8
     else:
         args.MAX_SEQ_STEP = 1
-        args.SUBSETS = args.TEST_SUBSETS + args.VAL_SUBSETS
-        full_test = args.MODE != 'train'
+        args.SUBSETS = args.VAL_SUBSETS #args.TEST_SUBSETS + args.VAL_SUBSETS
+        full_test = False #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0
         if args.MODEL_TYPE == 'C2D':
             skip_step = args.SEQ_LEN
         else:
             skip_step = args.SEQ_LEN/2
-        # skip_step = args.SEQ_LEN*8
+        skip_step = args.SEQ_LEN*8
 
 
     val_transform = transforms.Compose([ 

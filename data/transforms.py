@@ -7,7 +7,7 @@ import math
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 def get_clip_list_resized(tensors):
     max_size = tuple(max(s) for s in zip(*[img.shape for img in tensors]))
-    stride = 32
+    stride = 2
     max_size = list(max_size)
     max_size[2] = int(math.ceil(max_size[2] / stride) * stride)
     max_size[3] = int(math.ceil(max_size[3] / stride) * stride)
@@ -29,7 +29,7 @@ class Resize(object):
     def __init__(self, min_size, max_size):
         self.min_size = min_size
         self.max_size = max_size
-
+        self.stride = 32
     # modified from torchvision to add support for max size
     def get_size(self, image_size):
         
@@ -53,9 +53,12 @@ class Resize(object):
             if w < h:
                 ow = size
                 oh = int(size * h / w)
+                oh = int(math.floor(oh / self.stride) * self.stride)
             else:
                 oh = size
                 ow = int(size * w / h)
+                ow = int(math.floor(ow / self.stride) * self.stride)
+            # print('owoh', size, ow, oh)
 
             return (oh, ow)
 
@@ -69,7 +72,7 @@ class ResizeClip(object):
     def __init__(self, min_size, max_size):
         self.min_size = min_size
         self.max_size = max_size
-
+        self.stride = 32
     # modified from torchvision to add support for max size
     def get_size(self, image_size):
         
@@ -93,9 +96,12 @@ class ResizeClip(object):
             if w < h:
                 ow = size
                 oh = int(size * h / w)
+                oh = int(math.floor(oh / self.stride) * self.stride)
             else:
                 oh = size
                 ow = int(size * w / h)
+                ow = int(math.floor(ow / self.stride) * self.stride)
+            # print('owoh', size, ow, oh)
 
             return (oh, ow)
 

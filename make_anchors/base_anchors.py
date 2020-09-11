@@ -10,14 +10,13 @@ class anchorBox(object):
     def __init__(self, aspect_ratios =[0.5, 1 / 1., 1.5],
                     scale_ratios = [1.,]):
         super(anchorBox, self).__init__()
-        self.num_anchors = 0
-        self.variance = [0.1, 0.2]
         self.aspect_ratios = aspect_ratios
         self.scale_ratios = scale_ratios
-        self.default_sizes= [16*1.1, 32*1.2, 64*1.3, 128*1.4, 256*1.5]
+        self.default_sizes= [0.01, 0.06, 0.2, 0.4, 0.85]
         self.anchor_boxes = len(self.aspect_ratios)*len(self.scale_ratios)
         self.ar = self.anchor_boxes
-        self.num_anchors = ar
+        self.num_anchors = self.ar
+        
         print(self.scale_ratios, self.ar)
 
     def forward(self, grid_sizes):
@@ -37,7 +36,7 @@ class anchorBox(object):
                         anchor_h = h * sr
                         anchor_w = w * sr
                         anchors.append([cx, cy, anchor_w, anchor_h])
-
+                        print(cx, cy, anchor_w, anchor_h)
         output = torch.FloatTensor(anchors).view(-1, 4)
         output.clamp_(max=1, min=0)
         return output

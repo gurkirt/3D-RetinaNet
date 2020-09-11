@@ -348,14 +348,16 @@ def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou
     return mAP, ap_all, ap_strs
 
 
-def get_gt_frames(final_annots, subset, label_type):
+def get_gt_frames(final_annots, subsets, label_type):
     """Get video list form ground truth videos used in subset 
     and their ground truth frames """
 
     video_list = []
     frames = {}
+    if not isinstance(subsets, list):
+        subsets = [subsets]
     for videoname in final_annots['db']:
-        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], [subset]):
+        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
             video_list.append(videoname)
             frames = get_filtered_frames(
                 label_type, final_annots, videoname, frames)

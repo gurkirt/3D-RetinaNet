@@ -9,7 +9,8 @@ Inspired from https://github.com/kuangliu/pytorch-retinanet and
 https://github.com/gurkirt/realtime-action-detection
 
 """
-from modules.anchor_box_retinanet import anchorBox
+from modules.anchor_box_retinanet import anchorBox as RanchorBox
+from modules.anchor_box_kmeans import anchorBox as KanchorBox
 from modules.detection_loss import FocalLoss
 from models.backbone_models import backbone_models
 from modules.box_utils import decode
@@ -47,9 +48,15 @@ class RetinaNet(nn.Module):
         self.num_classes = args.num_classes
         # TODO: implement __call__ in
 
-        self.anchors = anchorBox()
-        print('Cell anchors\n', self.anchors.cell_anchors)
-        pdb.set_trace()
+        if args.ANCHOR_TYPE == 'RETINA':
+            self.anchors = RanchorBox()
+        elif args.ANCHOR_TYPE == 'KMEANS':
+            self.anchors = KanchorBox()
+        else:
+            raise RuntimeError('Define correct anchor type')
+            
+        # print('Cell anchors\n', self.anchors.cell_anchors)
+        # pdb.set_trace()
         self.ar = self.anchors.ar
         args.ar = self.ar
         self.use_bias = True
@@ -103,7 +110,9 @@ class RetinaNet(nn.Module):
 
         grid_sizes = [feature_map.shape[-2:] for feature_map in features]
         ancohor_boxes = self.anchors(grid_sizes)
-
+        
+        # print(ancohor_boxes)
+        # pdb.set_trace()
         loc = list()
         conf = list()
 

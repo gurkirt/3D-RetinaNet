@@ -6,7 +6,33 @@ import numpy as np
 from modules.box_utils import nms
 import datetime
 import logging 
+import torch
 
+# from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/modeling/rpn/anchor_generator.py
+class BufferList(torch.nn.Module):
+    """
+    
+    Similar to nn.ParameterList, but for buffers
+    
+    """
+
+    def __init__(self, buffers=None):
+        super(BufferList, self).__init__()
+        if buffers is not None:
+            self.extend(buffers)
+
+    def extend(self, buffers):
+        offset = len(self)
+        for i, buffer in enumerate(buffers):
+            self.register_buffer(str(offset + i), buffer)
+        return self
+
+    def __len__(self):
+        return len(self._buffers)
+
+    def __iter__(self):
+        return iter(self._buffers.values())
+        
 def setup_logger(args):
     log_file_name = '{:s}/{:s}-{date:%m-%d-%Hx}.log'.format(args.SAVE_ROOT, args.MODE, date=datetime.datetime.now())
     args.log_dir = 'logs/'+args.exp_name+'/'
