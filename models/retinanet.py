@@ -65,22 +65,21 @@ class RetinaNet(nn.Module):
         self.SEQ_LEN = args.SEQ_LEN
         self.HEAD_LAYERS = args.HEAD_LAYERS
         self.NUM_FEATURE_MAPS = args.NUM_FEATURE_MAPS
-        self.feature_layers = []
+        # self.feature_layers = []
         if self.HEAD_LAYERS > 0:
-            for _ in range(self.NUM_FEATURE_MAPS):
-                self.feature_layers.append(
-                    self.make_features(self.HEAD_LAYERS))
+            self.feature_layers = self.make_features(self.HEAD_LAYERS)
         self.feature_layers = nn.ModuleList(self.feature_layers)
         self.reg_heads = []
         self.cls_heads = []
         self.prior_prob = 0.01
         bias_value = -math.log((1 - self.prior_prob) / self.prior_prob)
-        for nf in range(self.NUM_FEATURE_MAPS):
-            self.reg_heads.append(self.make_head(
-                self.ar * 4, args.REG_HEAD_TIME_SIZE, 1))
-            self.cls_heads.append(self.make_head(
-                self.ar * self.num_classes, args.CLS_HEAD_TIME_SIZE, 1))
-            nn.init.constant_(self.cls_heads[nf][-1].bias, bias_value)
+        # for nf in range(self.NUM_FEATURE_MAPS):
+        self.reg_heads = self.make_head(
+            self.ar * 4, args.REG_HEAD_TIME_SIZE, 1)
+        self.cls_heads = self.make_head(
+            self.ar * self.num_classes, args.CLS_HEAD_TIME_SIZE, 1)
+        
+        nn.init.constant_(self.cls_heads[-1].bias, bias_value)
 
         self.reg_heads = nn.ModuleList(self.reg_heads)
         self.cls_heads = nn.ModuleList(self.cls_heads)
@@ -171,13 +170,10 @@ class RetinaNet(nn.Module):
                 1, 3, 3), stride=1, padding=(0, 1, 1), bias=use_bias))
             layers.append(nn.ReLU(True))
 
-        tpad = 0
-        if time_kernel == 3:
-            tpad = 1
-        elif time_kernel != 1:
-            raise RuntimeError('spcify correct temporal kernal size')
+        tpad = time_kernel//2
         layers.append(nn.Conv3d(head_size, out_planes, kernel_size=(
             time_kernel, 3, 3), stride=1, padding=(tpad, 1, 1)))
+        
         layers = nn.Sequential(*layers)
 
         for m in layers.modules():

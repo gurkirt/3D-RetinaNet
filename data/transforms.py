@@ -96,12 +96,9 @@ class ResizeClip(object):
             if w < h:
                 ow = size
                 oh = int(size * h / w)
-                oh = int(math.floor(oh / self.stride) * self.stride)
             else:
                 oh = size
                 ow = int(size * w / h)
-                ow = int(math.floor(ow / self.stride) * self.stride)
-            # print('owoh', size, ow, oh)
 
             return (oh, ow)
 

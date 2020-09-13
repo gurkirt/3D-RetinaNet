@@ -44,7 +44,7 @@ class anchorBox(torch.nn.Module):
             p_anchors[:,:2] = p_anchors[:,:2]-p_anchors[:,2:]/2.0
             p_anchors[:,2:] = p_anchors[:,2:]/2.0
             p_anchors = torch.FloatTensor(p_anchors).cuda()
-            print(p_anchors)
+            # print(p_anchors)
             anchors.append(p_anchors)
 
         return anchors
