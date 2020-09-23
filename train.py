@@ -118,9 +118,11 @@ def train(args, net, train_dataset, val_dataset):
 
             if iteration % args.LOG_STEP == 0 and iteration > args.LOG_START:
                 if args.TENSORBOARD:
-                    sw.add_scalars('Classification', {'val': cls_losses.val, 'avg':cls_losses.avg},iteration)
-                    sw.add_scalars('Localisation', {'val': loc_losses.val, 'avg':loc_losses.avg},iteration)
-                    sw.add_scalars('Overall', {'val': losses.val, 'avg':losses.avg},iteration)
+                    loss_group = dict()
+                    loss_group['Classification'] = cls_losses.val
+                    loss_group['Localisation'] = loc_losses.val
+                    loss_group['Overall'] = losses.val
+                    sw.add_scalars('Losses', loss_group,iteration)
                 epoch = iteration // epoch_size
                 print_line = 'Itration [{:d}/{:d}]{:06d}/{:06d} loc-loss {:.2f}({:.2f}) cls-loss {:.2f}({:.2f}) ' \
                              'average-loss {:.2f}({:.2f}) DataTime{:0.2f}({:0.2f}) Timer {:0.2f}({:0.2f})'.format( epoch, total_epochs, iteration, args.MAX_ITERS, loc_losses.val, loc_losses.avg, cls_losses.val,
@@ -143,18 +145,24 @@ def train(args, net, train_dataset, val_dataset):
                 mAP, ap_all, ap_strs = validate(args, net, val_data_loader, val_dataset, iteration)
                 label_types = args.label_types + ['ego_action']
                 all_classes = args.all_classes + [args.ego_classes]
+                mAP_group = dict()
+                
                 for nlt in range(args.num_label_types+1):
                     for ap_str in ap_strs[nlt]:
                         logger.info(ap_str)
                     ptr_str = '\n{:s} MEANAP:::=> {:0.5f}'.format(label_types[nlt], mAP[nlt])
                     logger.info(ptr_str)
-
+                    
                     if args.TENSORBOARD:
-                        sw.add_scalar('{:s}mAP'.format(label_types[nlt]), mAP[nlt], iteration)
+                        mAP_group[label_types[nlt]] = mAP[nlt]
+                        # sw.add_scalar('{:s}mAP'.format(label_types[nlt]), mAP[nlt], iteration)
                         class_AP_group = dict()
                         for c, ap in enumerate(ap_all[nlt]):
                             class_AP_group[all_classes[nlt][c]] = ap
                         sw.add_scalars('ClassAP-{:s}'.format(label_types[nlt]), class_AP_group, iteration)
+                
+                if args.TENSORBOARD:
+                    sw.add_scalars('mAPs', mAP_group, iteration)
 
                 torch.cuda.synchronize()
                 t0 = time.perf_counter()

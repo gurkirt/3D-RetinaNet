@@ -7,7 +7,7 @@ def backbone_models(args):
     assert args.ARCH.startswith('resnet')
 
     modelperms = {'resnet50': [3, 4, 6, 3], 'resnet101': [3, 4, 23, 3]}
-    model_3d_layers = {'resnet50': [[0, 1, 2], [0, 2], [0, 2, 4], [0, 1]],
+    model_3d_layers = {'resnet50': [[0, 1, 2], [0, 2], [0, 2, 4], [0, 1]], 
                        'resnet101': [[0, 1, 2], [0, 2], [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22], [0, 1]]}
     assert args.ARCH in modelperms, 'Arch shoudl from::>' + \
         ','.join([m for m in modelperms])

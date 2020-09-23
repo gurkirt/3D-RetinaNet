@@ -9,6 +9,7 @@ Inspired from https://github.com/kuangliu/pytorch-retinanet and
 https://github.com/gurkirt/realtime-action-detection
 
 """
+
 from modules.anchor_box_retinanet import anchorBox as RanchorBox
 from modules.anchor_box_kmeans import anchorBox as KanchorBox
 from modules.detection_loss import FocalLoss
@@ -20,7 +21,6 @@ import pdb
 import math
 import torch.nn as nn
 import modules.utils as utils
-# import torch.nn.functional as F
 
 logger = utils.get_logger(__name__)
 
@@ -65,59 +65,44 @@ class RetinaNet(nn.Module):
         self.SEQ_LEN = args.SEQ_LEN
         self.HEAD_LAYERS = args.HEAD_LAYERS
         self.NUM_FEATURE_MAPS = args.NUM_FEATURE_MAPS
-        # self.feature_layers = []
-        if self.HEAD_LAYERS > 0:
-            self.feature_layers = self.make_features(self.HEAD_LAYERS)
-        self.feature_layers = nn.ModuleList(self.feature_layers)
+        
         self.reg_heads = []
         self.cls_heads = []
         self.prior_prob = 0.01
         bias_value = -math.log((1 - self.prior_prob) / self.prior_prob)
         # for nf in range(self.NUM_FEATURE_MAPS):
         self.reg_heads = self.make_head(
-            self.ar * 4, args.REG_HEAD_TIME_SIZE, 1)
+            self.ar * 4, args.REG_HEAD_TIME_SIZE, self.HEAD_LAYERS)
         self.cls_heads = self.make_head(
-            self.ar * self.num_classes, args.CLS_HEAD_TIME_SIZE, 1)
+            self.ar * self.num_classes, args.CLS_HEAD_TIME_SIZE, self.HEAD_LAYERS)
         
         nn.init.constant_(self.cls_heads[-1].bias, bias_value)
 
-        self.reg_heads = nn.ModuleList(self.reg_heads)
-        self.cls_heads = nn.ModuleList(self.cls_heads)
 
         if args.MODE == 'train':  # eval_iters only in test case
             self.criterion = FocalLoss(args)
 
-        self.avg_pool = nn.AdaptiveAvgPool3d((None, 1, 1))
+        
         self.ego_head = nn.Conv3d(self.head_size, args.num_ego_classes, kernel_size=(
-            3, 3, 3), stride=1, padding=(1, 1, 1))
+            3, 1, 1), stride=1, padding=(1, 0, 0))
         nn.init.constant_(self.ego_head.bias, bias_value)
 
 
     def forward(self, images, gt_boxes=None, gt_labels=None, ego_labels=None, counts=None, img_indexs=None, get_features=False):
-        sources = self.backbone(images)
-        ego_feat = self.avg_pool(sources[2])
+        sources, ego_feat = self.backbone(images)
+        
         ego_preds = self.ego_head(
             ego_feat).squeeze(-1).squeeze(-1).permute(0, 2, 1).contiguous()
-        # print('ego_preds:: ', ego_preds.shape)
-        features = list()
-        # pdb.set_trace()
-        if self.HEAD_LAYERS > 0:
-            for x, m in zip(sources, self.feature_layers):
-                features.append(m(x))
-        else:
-            features = sources
 
-        grid_sizes = [feature_map.shape[-2:] for feature_map in features]
+        grid_sizes = [feature_map.shape[-2:] for feature_map in sources]
         ancohor_boxes = self.anchors(grid_sizes)
         
-        # print(ancohor_boxes)
-        # pdb.set_trace()
         loc = list()
         conf = list()
 
-        for x, r, c in zip(features, self.reg_heads, self.cls_heads):
-            loc.append(r(x).permute(0, 2, 3, 4, 1).contiguous())
-            conf.append(c(x).permute(0, 2, 3, 4, 1).contiguous())
+        for x in sources:
+            loc.append(self.reg_heads(x).permute(0, 2, 3, 4, 1).contiguous())
+            conf.append(self.cls_heads(x).permute(0, 2, 3, 4, 1).contiguous())
 
         loc = torch.cat([o.view(o.size(0), o.size(1), -1) for o in loc], 2)
         conf = torch.cat([o.view(o.size(0), o.size(1), -1) for o in conf], 2)
@@ -164,10 +149,16 @@ class RetinaNet(nn.Module):
         layers = []
         use_bias = self.use_bias
         head_size = self.head_size
-
-        for _ in range(nun_shared_heads):
+        
+        for kk in range(nun_shared_heads):
+            if kk % 2 == 1 and time_kernel>1:
+                branch_kernel = 3
+                bpad = 1
+            else:
+                branch_kernel = 1
+                bpad = 0
             layers.append(nn.Conv3d(head_size, head_size, kernel_size=(
-                1, 3, 3), stride=1, padding=(0, 1, 1), bias=use_bias))
+                branch_kernel, 3, 3), stride=1, padding=(bpad, 1, 1), bias=use_bias))
             layers.append(nn.ReLU(True))
 
         tpad = time_kernel//2

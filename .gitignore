@@ -16,4 +16,4 @@ weights/
 # pycharm
 .idea/
 __pycache__/
-
+tempr_logs/

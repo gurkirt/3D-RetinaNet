@@ -76,6 +76,7 @@ def copy_source(source_dir):
 
 
 def set_args(args):
+    args.MAX_SIZE = int(args.MIN_SIZE*1.35)
     args.MILESTONES = [int(val) for val in args.MILESTONES.split(',')]
     args.GAMMAS = [float(val) for val in args.GAMMAS.split(',')]
     args.EVAL_ITERS = [int(val) for val in args.EVAL_ITERS.split(',')]
@@ -112,20 +113,26 @@ def set_args(args):
     args.hostname = hostname
     args.user = username
     
+    args.model_init = 'none'
+    if not args.MODEL_PATH.endswith('.pth'):
+        assert args.MODEL_PATH in ['imagenet','kinetics'] 
+        args.model_init = args.MODEL_PATH
+        if args.MODEL_PATH == 'imagenet':
+            args.MODEL_PATH = os.path.join('/mnt/mercury-alpha/pretrained_models/', args.MODEL_PATH, args.ARCH+'.pth')
+        else:
+            args.MODEL_PATH = os.path.join('/mnt/mercury-alpha/pretrained_models/', args.MODEL_PATH, args.ARCH+args.MODEL_TYPE+'.pth')
+            
+
     if username == 'gurkirt':
-        args.MODEL_PATH = '/mnt/mars-gamma/global-models/pytorch-imagenet/'
         if hostname == 'mars':
             args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
             args.SAVE_ROOT = '/mnt/mercury-alpha/'
-            args.vis_port = 8097
         elif hostname == 'venus':
-            args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
+            args.DATA_ROOT = '/mnt/venus-fast/datasets/'
             args.SAVE_ROOT = '/mnt/mercury-alpha/'
-            args.vis_port = 8095
         elif hostname == 'mercury':
             args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
             args.SAVE_ROOT = '/mnt/mercury-alpha/'
-            args.vis_port = 8098
         else:
             raise('ERROR!!!!!!!! Specify directories')
     
@@ -136,9 +143,9 @@ def set_args(args):
 def create_exp_name(args):
     """Create name of experiment using training parameters """
     splits = ''.join([split[0]+split[-1] for split in args.TRAIN_SUBSETS])
-    args.exp_name = '{:s}{:s}-{:d}x{:d}-b{:0d}s{:d}x{:d}x{:d}-{:s}{:s}-h{:d}x{:d}x{:d}-bn{:d}f{:d}'.format(
+    args.exp_name = '{:s}{:s}{:d}-P{:s}-b{:0d}s{:d}x{:d}x{:d}-{:s}{:s}-h{:d}x{:d}x{:d}-bn{:d}f{:d}'.format(
         args.ARCH, args.MODEL_TYPE,
-        args.MIN_SIZE, args.MAX_SIZE,args.BATCH_SIZE,
+        args.MIN_SIZE, args.model_init, args.BATCH_SIZE,
         args.SEQ_LEN, args.MIN_SEQ_STEP, args.MAX_SEQ_STEP,
         args.DATASET, splits, 
         args.HEAD_LAYERS, args.CLS_HEAD_TIME_SIZE,

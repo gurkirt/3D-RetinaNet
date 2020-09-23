@@ -44,7 +44,7 @@ class ResNetFPN(nn.Module):
             block, 64, num_blocks[0], temp_kernals=model_3d_layers[0], nl_inds=non_local_inds[0])
         self.MODEL_TYPE = args.MODEL_TYPE
         
-        if args.model_subtype in ['RCN', 'CLSTM','RCLSTM','CGRU','RCGRU']:
+        if args.model_subtype in ['C2D','RCN','CLSTM','RCLSTM','CGRU','RCGRU']:
             self.pool2 = None
         else:
             self.pool2 = nn.MaxPool3d(kernel_size=(
@@ -62,6 +62,9 @@ class ResNetFPN(nn.Module):
 
         self.conv6 = conv3x3(512 * block.expansion, 256, stride=2, padding=1)  # P6
         self.conv7 = conv3x3(256, 256, stride=2, padding=1)  # P7
+
+        self.ego_lateral = conv3x3(512 * block.expansion,  256, stride=2, padding=0)
+        self.avg_pool = nn.AdaptiveAvgPool3d((None, 1, 1))
 
         self.lateral_layer1 = conv1x1(512 * block.expansion, 256)
         self.lateral_layer2 = conv1x1(256 * block.expansion, 256)
@@ -151,6 +154,10 @@ class ResNetFPN(nn.Module):
         c4 = self.layer3(c3)
         c5 = self.layer4(c4)
 
+        ego_feat = self.ego_lateral(c5)
+        # print(sources[-1].shape)
+        ego_feat = self.avg_pool(ego_feat)
+
         p5 = self.lateral_layer1(c5)
         p5_upsampled = self._upsample(p5, c4)
         p5 = self.corr_layer1(p5)
@@ -173,8 +180,10 @@ class ResNetFPN(nn.Module):
                 # print('in feature shape', features[i].shape)
                 features[i] = self._upsample_time(features[i])
                 # print('out feature shape', features[i].shape)
+            
+            ego_feat = self._upsample_time(ego_feat)
         
-        return features
+        return features, ego_feat
 
     
 
@@ -244,7 +253,9 @@ class ResNetFPN(nn.Module):
                     state_name = own_name.replace(ln, update_name_dict[ln])
                 else:
                     discard = True
-
+            # pdb.set_trace()
+            if 'module.'+state_name in state_dict.keys():
+                state_name = 'module.'+state_name 
             if state_name in state_dict.keys() and not discard:
                 param = state_dict[state_name]
                 own_size = own_state[own_name].size()

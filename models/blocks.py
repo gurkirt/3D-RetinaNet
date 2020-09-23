@@ -77,8 +77,8 @@ class CLSTM(nn.Module):
 
     def forward(self, in_data):
         in_shape = in_data.shape
-        h_curr = torch.zeros(in_shape[0], in_shape[0], in_shape[0], in_shape[0])
-        c_curr = torch.zeros(in_shape[0], in_shape[0], in_shape[0], in_shape[0])
+        h_curr = torch.zeros(in_shape[0], in_shape[1], in_shape[3], in_shape[4], device=in_data.device)
+        c_curr = torch.zeros(in_shape[0], in_shape[1], in_shape[3], in_shape[4], device=in_data.device)
         out = None
         for i in range(in_data.size(2)):
             x = torch.cat((in_data[:, :, i, :, :], h_curr), 1)
@@ -97,55 +97,6 @@ class CLSTM(nn.Module):
                 out = h_curr.unsqueeze(2)
             else:
                 out = torch.cat((out, h_curr.unsqueeze(2)), 2)
-
-        return out
-
-
-class BottleneckCLSTM(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, temp_kernal=1, downsample=None):
-        super(BottleneckCLSTM, self).__init__()
-        self.temp_kernal = temp_kernal
-        temp_pad = 1
-        if temp_kernal == 1:
-            temp_pad = 0
-        self.conv1 = nn.Conv3d(inplanes, planes, kernel_size=(
-            1, 1, 1), padding=(0, 0, 0),  bias=False)
-        if self.temp_kernal > 1:
-            self.clstm = CLSTM(planes, kernel_size=1, stride=1, bias=True)
-        self.bn1 = nn.BatchNorm3d(planes)
-        self.conv2 = nn.Conv3d(planes, planes, kernel_size=(1, 3, 3), stride=(
-            1, stride, stride), padding=(0, 1, 1), bias=False)
-        self.bn2 = nn.BatchNorm3d(planes)
-        self.conv3 = nn.Conv3d(
-            planes, planes * self.expansion, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm3d(planes * self.expansion)
-        self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-        # print(x.shape)
-        out = self.conv1(x)
-        if self.temp_kernal > 1:
-            out = self.clstm(out)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
-        # print(out.shape)
-        if self.downsample is not None:
-            residual = self.downsample(x)
-        # print(residual.shape)
-        out += residual
-        out = self.relu(out)
 
         return out
 
@@ -211,17 +162,19 @@ class CGRU(nn.Module):
 
     def forward(self, in_data):
         in_shape = in_data.shape
-        h_curr = torch.zeros(in_shape[0], in_shape[0], in_shape[0], in_shape[0])
+        # h_curr = torch.zeros(in_shape[0], in_shape[1], in_shape[3], in_shape[4], device=in_data.device)
+        # h_curr = torch.zeros(in_shape[0], in_shape[1], in_shape[3], in_shape[4], device=in_data.device)
+        h_curr = in_data[:,:,0,:,:]
         out = None
         for i in range(in_data.size(2)):
             xin = torch.cat((in_data[:, :, i, :, :], h_curr), 1)
-            cx = self.recurrent_conv_gates(x)
+            cx = self.recurrent_conv_gates(xin)
 
             update, reset = torch.split(cx, self.hidden_dim, dim=1) 
             update = torch.sigmoid(update)
             reset = torch.sigmoid(reset)
             
-            x_out = torch.tanh(self.out_gate(torch.cat([in_data[:, :, i, :, :], h_curr * reset], dim=1)))
+            x_out = torch.tanh(self.recurrent_conv_out(torch.cat([in_data[:, :, i, :, :], h_curr * reset], dim=1)))
             h_curr = h_curr * (1 - update) + x_out * update
 
             if out is None:
@@ -434,6 +387,8 @@ class BottleneckC2D(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
+        # self.apply(c2_msra_fill)
+
 
     def forward(self, x):
         residual = x

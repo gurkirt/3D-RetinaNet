@@ -28,22 +28,24 @@ def main():
                         type=str, help=' base model')
     parser.add_argument('--ANCHOR_TYPE', default='RETINA',
                         type=str, help='type of anchors to be used in model')
-    parser.add_argument('--MODEL_PATH', default='',
+    parser.add_argument('--MODEL_PATH', default='imagenet',
                         help='Location to where imagenet pretrained models exists')  # /mnt/mars-fast/datasets/
-    parser.add_argument('--SEQ_LEN', default=4,
+    parser.add_argument('--SEQ_LEN', default=8,
                         type=int, help='NUmber of input frames')
     parser.add_argument('--MIN_SEQ_STEP', default=1,
                         type=int, help='DIFFERENCE of gap between the frames of sequence')
     parser.add_argument('--MAX_SEQ_STEP', default=1,
                         type=int, help='DIFFERENCE of gap between the frames of sequence')
     # if output heads are have shared features or not: 0 is no-shareing else sharining enabled
-    parser.add_argument('--MULIT_SCALE', default=False, type=str2bool,help='perfrom multiscale training')
-    parser.add_argument('--HEAD_LAYERS', default=0, 
+    # parser.add_argument('--MULIT_SCALE', default=False, type=str2bool,help='perfrom multiscale training')
+    parser.add_argument('--HEAD_LAYERS', default=3, 
                         type=int,help='0 mean no shareding more than 0 means shareing')
     parser.add_argument('--NUM_FEATURE_MAPS', default=5, 
                         type=int,help='0 mean no shareding more than 0 means shareing')
-    parser.add_argument('--CLS_HEAD_TIME_SIZE', default=3, 
+    parser.add_argument('--CLS_HEAD_TIME_SIZE', default=1, 
                         type=int, help='Temporal kernel size of classification head')
+    parser.add_argument('--CLS_BRANCH_TIME_KERNEL', default=1, 
+                        type=int, help='Temporal kernel size of classification branch')
     parser.add_argument('--REG_HEAD_TIME_SIZE', default=1,
                     type=int, help='Temporal kernel size of regression head')
     #  Name of the dataset only voc or coco are supported
@@ -53,12 +55,12 @@ def main():
                         type=str,help='Training SUBSETS seprated by ,')
     parser.add_argument('--VAL_SUBSETS', default='', 
                         type=str,help='Validation SUBSETS seprated by ,')
-    parser.add_argument('--TEST_SUBSETS', default='val_3', 
+    parser.add_argument('--TEST_SUBSETS', default='', 
                         type=str,help='Testing SUBSETS seprated by ,')
     # Input size of image only 600 is supprted at the moment 
-    parser.add_argument('--MIN_SIZE', default=416, 
+    parser.add_argument('--MIN_SIZE', default=400, 
                         type=int, help='Input Size for FPN')
-    parser.add_argument('--MAX_SIZE', default=576, 
+    parser.add_argument('--MAX_SIZE', default=550, 
                         type=int, help='Input Size for FPN')
     #  data loading argumnets
     parser.add_argument('-b','--BATCH_SIZE', default=8, 
@@ -71,15 +73,15 @@ def main():
                         type=str, help='Optimiser type')
     parser.add_argument('--RESUME', default=0, 
                         type=int, help='Resume from given iterations')
-    parser.add_argument('--MAX_ITERS', default=30000, 
+    parser.add_argument('--MAX_ITERS', default=40000, 
                         type=int, help='Number of training iterations')
     parser.add_argument('-l','--LR', '--learning-rate', 
-                        default=0.01, type=float, help='initial learning rate')
+                        default=0.0025, type=float, help='initial learning rate')
     parser.add_argument('--MOMENTUM', default=0.9, 
                         type=float, help='momentum')
-    parser.add_argument('--MILESTONES', default='15000,25000', 
+    parser.add_argument('--MILESTONES', default='2000,25000,32000', 
                         type=str, help='Chnage the lr @')
-    parser.add_argument('--GAMMAS', default='0.1,0.1', 
+    parser.add_argument('--GAMMAS', default='2,0.1,0.1', 
                         type=str, help='Gamma update for SGD')
     parser.add_argument('--WEIGHT_DECAY', default=1e-4, 
                         type=float, help='Weight decay for SGD')
@@ -97,9 +99,9 @@ def main():
     # Evaluation hyperparameters
     parser.add_argument('--EVAL_ITERS', default='30000', 
                         type=str, help='eval iterations')
-    parser.add_argument('--INTIAL_VAL', default=1000, 
+    parser.add_argument('--INTIAL_VAL', default=5000, 
                         type=int, help='Initial number of training iterations before evaluation')
-    parser.add_argument('--VAL_STEP', default=2500, 
+    parser.add_argument('--VAL_STEP', default=5000, 
                         type=int, help='Number of training iterations before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold')
@@ -133,10 +135,10 @@ def main():
                         type=int, help='eval iterations')
     
     # Progress logging
-    parser.add_argument('--LOG_START', default=0, 
+    parser.add_argument('--LOG_START', default=100, 
                         type=int, help='start loging after k steps for text/tensorboard') 
                         # Let initial ripples settle down
-    parser.add_argument('--LOG_STEP', default=1, 
+    parser.add_argument('--LOG_STEP', default=2, 
                         type=int, help='Log every k steps for text/tensorboard')
     parser.add_argument('--TENSORBOARD', default=1,
                         type=str2bool, help='Use tensorboard for loss/evalaution visualization')

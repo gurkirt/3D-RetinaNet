@@ -176,7 +176,7 @@ class Read(tutils.data.Dataset):
         self.BATCH_SIZE = args.BATCH_SIZE
         self.MIN_SEQ_STEP = args.MIN_SEQ_STEP
         self.MAX_SEQ_STEP = args.MAX_SEQ_STEP
-        self.MULIT_SCALE = args.MULIT_SCALE
+        # self.MULIT_SCALE = args.MULIT_SCALE
         self.full_test = full_test
         self.skip_step = skip_step #max(skip_step, self.SEQ_LEN*self.MIN_SEQ_STEP/2)
         self.num_steps = max(1, int(self.MAX_SEQ_STEP - self.MIN_SEQ_STEP + 1 )//2)

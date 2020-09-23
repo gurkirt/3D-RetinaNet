@@ -7,7 +7,7 @@ import math
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 def get_clip_list_resized(tensors):
     max_size = tuple(max(s) for s in zip(*[img.shape for img in tensors]))
-    stride = 2
+    stride = 32
     max_size = list(max_size)
     max_size[2] = int(math.ceil(max_size[2] / stride) * stride)
     max_size[3] = int(math.ceil(max_size[3] / stride) * stride)
