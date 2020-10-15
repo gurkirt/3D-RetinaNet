@@ -4,7 +4,7 @@
 
 import torch, pdb
 import torch.nn as nn
-from fvcore.nn.weight_init import c2_msra_fill
+#from fvcore.nn.weight_init import c2_msra_fill
 
 class Nonlocal(nn.Module):
     """
