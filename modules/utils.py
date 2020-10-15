@@ -216,14 +216,14 @@ def filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidences
     # confidences_np = confidences.cpu().numpy()
     # save_data = np.hstack((boxes_np[sorted_ind,:], confidences_np[sorted_ind, :]))
     # args.GEN_TOPK, args.GEN_NMS, 
-    max_k = min(args.GEN_TOPK*20, scores.shape[0])
+    max_k = min(args.GEN_TOPK*6, scores.shape[0])
     ids, counts = nms(boxes, scores, args.GEN_NMS, max_k)  # idsn - ids after nms
     scores = scores[ids[:min(args.GEN_TOPK,counts)]].cpu().numpy()
     boxes = boxes[ids[:min(args.GEN_TOPK,counts)],:].cpu().numpy()
     confidences = confidences[ids[:min(args.GEN_TOPK, counts)],:].cpu().numpy()
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
     save_data = np.hstack((cls_dets, confidences[:,1:])).astype(np.float32)
-    # print(save_data.shape)
+    #print(save_data.shape)
     return cls_dets, save_data
 
 

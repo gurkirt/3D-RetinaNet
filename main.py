@@ -115,7 +115,7 @@ def main():
                         type=float, help='Confidence threshold at the time of generation')
     parser.add_argument('--GEN_TOPK', default=500, 
                         type=int, help='topk at the time of generation')
-    parser.add_argument('--GEN_NMS', default=0.9, 
+    parser.add_argument('--GEN_NMS', default=0.85, 
                         type=float, help='topk at the time of generation')
     parser.add_argument('--CLASSWISE_NMS', default=True, 
                         type=str2bool, help='topk at the time of generation')
