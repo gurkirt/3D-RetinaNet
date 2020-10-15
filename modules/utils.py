@@ -192,7 +192,7 @@ def filter_detections(args, scores, decoded_boxes_batch):
         return np.asarray([])
     
     boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
-    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*10)  # idsn - ids after nms
+    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*5)  # idsn - ids after nms
     scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
     boxes = boxes[ids[:min(args.TOPK,counts)]].cpu().numpy()
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
