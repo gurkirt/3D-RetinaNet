@@ -128,7 +128,7 @@ def set_args(args):
         elif hostname == 'venus':
             args.DATA_ROOT = '/mnt/venus-fast/datasets/'
             args.SAVE_ROOT = '/mnt/mercury-alpha/'
-        elif hostname == 'mercury':
+        elif hostname in ['sun','mercury']:
             args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
             args.SAVE_ROOT = '/mnt/mercury-alpha/'
         else:

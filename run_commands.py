@@ -2,7 +2,7 @@
 mode = 'gen_dets'
 import os
 
-for net,d in [('I3D',1),('RCN',2),('C2D',3)]:
+for net,d in [('I3D',1),('RCN',1),('C2D',1)]:
     for train_subset in ['train_1', 'train_2','train_3']:
         for seq, bs, tseqs in [(16,8, [16,32]), (8,4,[8,32])]:
             for tseq in tseqs: 
