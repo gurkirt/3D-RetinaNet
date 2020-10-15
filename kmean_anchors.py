@@ -3,7 +3,7 @@ from make_anchors.base_anchors import anchorBox
 from modules.evaluation import get_gt_frames
 import torch, pdb, json, os
 import numpy as np
-from data import Read
+from data import VideoDataset
 import argparse
 
 parser = argparse.ArgumentParser(description='prepare VOC dataset')

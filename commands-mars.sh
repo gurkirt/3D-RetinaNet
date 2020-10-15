@@ -1,0 +1,14 @@
+
+# python main.py --MODE=train --MODEL_TYPE=RCN --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245
+# python main.py --MODE=train --MODEL_TYPE=I3D --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245 --RESUME=21
+# python main.py --MODE=train --MODEL_TYPE=C2D --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=RCLSTM --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=I3D --TRAIN_SUBSETS=train_2 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=RCN --TRAIN_SUBSETS=train_2 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=C2D --TRAIN_SUBSETS=train_2 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=RCLSTM --TRAIN_SUBSETS=train_2 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245
+# python main.py --MODE=train --MODEL_TYPE=I3D --TRAIN_SUBSETS=train_1 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=RCN --TRAIN_SUBSETS=train_1 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=C2D --TRAIN_SUBSETS=train_1 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00225
+# python main.py --MODE=train --MODEL_TYPE=RCLSTM --TRAIN_SUBSETS=train_1 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --MODE=train --MODEL_TYPE=I3D --DATASET=ucf24 --TRAIN_SUBSETS=train --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245 --RESUME=9 --MILESTONES=7,9 --MAX_EPOCHS=10

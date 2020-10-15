@@ -20,11 +20,11 @@ from modules.tube_helper import trim_tubes
 logger = utils.get_logger(__name__)
 
 def build_eval_tubes(args, val_dataset):
-    for iteration in args.EVAL_ITERS:
-        args.det_itr = iteration
-        logger.info('Building tubes at ' + str(iteration))
-        log_file = open("{pt:s}/tubeing-{it:06d}.log".format(pt=args.SAVE_ROOT, it=iteration, date=datetime.datetime.now()), "w", 10)
-        args.det_save_dir = "{pt:s}/detections-{it:06d}/".format(pt=args.SAVE_ROOT, it=iteration)
+    for epoch in args.EVAL_EPOCH:
+        args.det_itr = epoch
+        logger.info('Building tubes at ' + str(epoch))
+        log_file = open("{pt:s}/tubeing-{it:06d}.log".format(pt=args.SAVE_ROOT, it=epoch, date=datetime.datetime.now()), "w", 10)
+        args.det_save_dir = "{pt:s}/detections-{it:06d}/".format(pt=args.SAVE_ROOT, it=epoch)
         assert os.path.isdir(args.det_save_dir), args.det_save_dir + ' detection directory does not exists '
         
         log_file.write(args.exp_name + '\n')
@@ -37,7 +37,7 @@ def build_eval_tubes(args, val_dataset):
         video_list = get_gt_video_list(val_dataset.anno_file, args.TEST_SUBSETS)
 
         if args.COMPUTE_TUBES:
-            paths = perform_building(args, video_list, iteration)
+            paths = perform_building(args, video_list, epoch)
             make_tubes(args, paths, video_list, tube_file)
 
         torch.cuda.synchronize()
@@ -64,7 +64,7 @@ def build_eval_tubes(args, val_dataset):
         logger.info('Results are saved at '+ result_file)
         log_file.close()
 
-def perform_building(args, video_list, iteration):
+def perform_building(args, video_list, epoch):
 
     """Build agent-level tube or called paths"""
 

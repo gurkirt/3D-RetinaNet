@@ -86,7 +86,12 @@ class FocalLoss(nn.Module):
         # mask = torch.zeros([preds.shape[0],preds.shape[1]], dtype=torch.int)
 
         with torch.no_grad():
-            zeros_tensor = torch.zeros(1, gt_labels.shape[-1], device=gt_labels.device)
+            # gt_boxes = gt_boxes.cpu()
+            # gt_labels = gt_labels.cpu()
+            # anchors = anchors.cpu()
+            # device = torch.device("cpu")
+            device = preds.device
+            zeros_tensor = torch.zeros(1, gt_labels.shape[-1], device=device)
             for b in range(gt_boxes.shape[0]):
                 all_labels = []
                 gt_locations = []
@@ -95,16 +100,18 @@ class FocalLoss(nn.Module):
                     gt_boxes_batch = gt_boxes[b, s, :counts[b,s], :]
                     gt_labels_batch = gt_labels[b, s, :counts[b,s], :]
                     if counts[b,s]>0:
-                        gt_dumy_labels_batch = torch.cuda.LongTensor([i for i in range(counts[b,s])], device=gt_labels.device)
+                        gt_dumy_labels_batch = torch.LongTensor([i for i in range(counts[b,s])]).to(device)
                         conf, loc = box_utils.match_anchors_wIgnore(gt_boxes_batch, gt_dumy_labels_batch, 
                             anchors, pos_th=self.positive_threshold, nge_th=self.negative_threshold )
                     else:
-                        loc = torch.zeros_like(anchors)
-                        conf = ego_labels.new_zeros(anchors.shape[0]) - 1
+                        loc = torch.zeros_like(anchors, device=device)
+                        conf = ego_labels.new_zeros(anchors.shape[0], device=device) - 1
                     
+                    # print(conf.device)
+                    # print(loc.device)
                     gt_locations.append(loc)
                     labels_bin.append(conf)
-                     
+
                     dumy_conf = conf.clone()
                     dumy_conf[dumy_conf<0] = 0
                     labels_bs = torch.cat((zeros_tensor, gt_labels_batch),0)
@@ -117,12 +124,18 @@ class FocalLoss(nn.Module):
                 ball_labels.append(all_labels)
                 bgt_locations.append(gt_locations)
                 blabels_bin.append(labels_bin)
-            all_labels = torch.stack(ball_labels, 0).float()
+            
+            all_labels = torch.stack(ball_labels, 0)
             gt_locations = torch.stack(bgt_locations, 0)
-            labels_bin = torch.stack(blabels_bin, 0).float()
+            labels_bin = torch.stack(blabels_bin, 0)
+            # mask = labels_bin > -1
+            # device = ego_preds.device
+            # all_labels = all_labels.to(device)
+            # gt_locations = gt_locations.to(device)
+            # labels_bin = labels_bin.to(device)
 
-        bgt_locations = []
-        blabels_bin = []
+        # bgt_locations = []
+        # blabels_bin = []
         pos_mask = labels_bin > 0
         num_pos = max(1.0, float(pos_mask.sum()))
         

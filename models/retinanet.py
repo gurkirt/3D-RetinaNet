@@ -24,7 +24,6 @@ import modules.utils as utils
 
 logger = utils.get_logger(__name__)
 
-
 class RetinaNet(nn.Module):
     """Feature Pyramid Network Architecture
     The network is composed of a backbone FPN network followed by the
@@ -78,11 +77,9 @@ class RetinaNet(nn.Module):
         
         nn.init.constant_(self.cls_heads[-1].bias, bias_value)
 
-
         if args.MODE == 'train':  # eval_iters only in test case
             self.criterion = FocalLoss(args)
 
-        
         self.ego_head = nn.Conv3d(self.head_size, args.num_ego_classes, kernel_size=(
             3, 1, 1), stride=1, padding=(1, 0, 0))
         nn.init.constant_(self.ego_head.bias, bias_value)
@@ -145,18 +142,18 @@ class RetinaNet(nn.Module):
 
         return layers
 
-    def make_head(self, out_planes, time_kernel, nun_shared_heads):
+    def make_head(self, out_planes, time_kernel,  num_heads_layers):
         layers = []
         use_bias = self.use_bias
         head_size = self.head_size
         
-        for kk in range(nun_shared_heads):
-            if kk % 2 == 1 and time_kernel>1:
-                branch_kernel = 3
-                bpad = 1
-            else:
-                branch_kernel = 1
-                bpad = 0
+        for kk in range(num_heads_layers):
+            # if kk % 2 == 1 and time_kernel>1:
+            #     branch_kernel = 3
+            #     bpad = 1
+            # else:
+            branch_kernel = 1
+            bpad = 0
             layers.append(nn.Conv3d(head_size, head_size, kernel_size=(
                 branch_kernel, 3, 3), stride=1, padding=(bpad, 1, 1), bias=use_bias))
             layers.append(nn.ReLU(True))

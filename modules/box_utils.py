@@ -11,6 +11,7 @@ def match_anchors_wIgnore(gt_boxes, gt_labels, anchors, pos_th=0.5, nge_th=0.4, 
     # pdb.set_trace()
     seq_overlaps =[]
     inds = torch.LongTensor([m*seq_len for m in range(num_mt)])  
+    # print('indexs device', inds.device)
     # print(inds, num_mt)
     ## get indexes of first frame in seq for each microtube
     gt_labels = gt_labels[inds]
@@ -34,6 +35,7 @@ def match_anchors_wIgnore(gt_boxes, gt_labels, anchors, pos_th=0.5, nge_th=0.4, 
     #     print('MIN VAL::', best_anchor_overlap.min().item())
     #     print('lower than o.5', best_anchor_overlap, gt_boxes)
     # [1,num_anchors] best ground truth for each anchor
+    
     best_truth_overlap, best_truth_idx = overlaps.max(0, keepdim=True)
     best_truth_idx.squeeze_(0)
     best_truth_overlap.squeeze_(0)

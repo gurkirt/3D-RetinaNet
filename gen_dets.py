@@ -22,27 +22,47 @@ logger = utils.get_logger(__name__)
 def gen_dets(args, net, val_dataset):
     
     net.eval()
-    val_data_loader = data_utils.DataLoader(val_dataset, int(args.BATCH_SIZE), num_workers=args.NUM_WORKERS,
+    val_data_loader = data_utils.DataLoader(val_dataset, int(args.TEST_BATCH_SIZE), num_workers=args.NUM_WORKERS,
                                  shuffle=False, pin_memory=True, collate_fn=custum_collate)
-    for iteration in args.EVAL_ITERS:
-        args.det_itr = iteration
-        logger.info('Testing at ' + str(iteration))
-        args.det_save_dir = "{pt:s}/detections-{it:06d}/".format(pt=args.SAVE_ROOT, it=iteration, )
-        logger.info('detection saving dir is :: '+args.det_save_dir)
-
-        if not os.path.isdir(args.det_save_dir): #if save directory doesn't exist create it
-            os.makedirs(args.det_save_dir)
+    for epoch in args.EVAL_EPOCHS:
+        args.det_itr = epoch
+        logger.info('Testing at ' + str(epoch))
         
-        args.MODEL_PATH = args.SAVE_ROOT + 'model_{:06d}.pth'.format(iteration)
+        args.det_save_dir = os.path.join(args.SAVE_ROOT, "detections-{it:02d}-{sq:02d}/".format(it=epoch, sq=args.TEST_SEQ_LEN))
+        logger.info('detection saving dir is :: '+args.det_save_dir)
+        
+        # is_all_done = True
+        # if os.path.isdir(args.det_save_dir):
+        #     for vid, videoname in enumerate(val_dataset.video_list):
+        #         save_dir = '{:s}/{}'.format(args.det_save_dir, videoname)
+        #         if os.path.isdir(save_dir):
+        #             numf = val_dataset.numf_list[vid]
+        #             dets_list = [d for d in os.listdir(save_dir) if d.endswith('.pkl')]
+        #             if numf != len(dets_list):
+        #                 is_all_done = False
+        #                 print('Not done', save_dir, numf, len(dets_list))
+        #                 break 
+        #         else:
+        #             is_all_done = False
+        #             break
+        # else:
+        #     is_all_done = False
+        #     os.makedirs(args.det_save_dir)
+        
+        # if is_all_done:
+        #     print('All done! skipping detection')
+        #     continue
+        
+        args.MODEL_PATH = args.SAVE_ROOT + 'model_{:06d}.pth'.format(epoch)
         net.load_state_dict(torch.load(args.MODEL_PATH))
         
-        logger.info('Finished loading model %d !' % iteration )
+        logger.info('Finished loading model %d !' % epoch )
         
         torch.cuda.synchronize()
         tt0 = time.perf_counter()
         
         net.eval() # switch net to evaluation mode        
-        mAP, _, ap_strs = perform_detection(args, net, val_data_loader, val_dataset, iteration)
+        mAP, _, ap_strs = perform_detection(args, net, val_data_loader, val_dataset, epoch)
         label_types = [args.label_types[0]] + ['ego_action']
         for nlt in range(len(label_types)):
             for ap_str in ap_strs[nlt]:
@@ -78,7 +98,7 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
         gt_boxes_all.append([])
     
     nlt = 0
-
+    processed_videos = []
     with torch.no_grad():
         for val_itr, (images, gt_boxes, gt_targets, ego_labels, batch_counts, img_indexs, wh) in enumerate(val_data_loader):
 
@@ -104,6 +124,17 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
                 annot_info = val_dataset.ids[index]
                 video_id, frame_num, step_size = annot_info
                 videoname = val_dataset.video_list[video_id]
+                save_dir = '{:s}/{}'.format(args.det_save_dir, videoname)
+                store_last = False
+                if videoname not in processed_videos:
+                    processed_videos.append(videoname)
+                    store_last = True
+
+                if not os.path.isdir(save_dir):
+                    os.makedirs(save_dir)
+                
+                count += 1
+
                 for s in range(seq_len):
                     
                     if ego_labels[b,s]>-1:
@@ -117,18 +148,16 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
                     gt_boxes_all[0].append(frame_gt)
                     confidence_batch = confidence[b,s]
                     scores = confidence_batch[:, 0].squeeze().clone()
-                    save_data = utils.filter_detections_with_confidences(args, scores, decoded_boxes_batch, confidence_batch)
+                    cls_dets, save_data = utils.filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidence_batch)
                     # if save_data
                     # print(save_data.shape)
-                    det_boxes[0][0].append(save_data[:, :5])
-                    count += 1
-                    save_dir = '{:s}/{}'.format(args.det_save_dir, videoname)
-                    if not os.path.isdir(save_dir):
-                        os.makedirs(save_dir)
+                    det_boxes[0][0].append(cls_dets)
+                    
+                    
                     save_name = '{:s}/{:08d}.pkl'.format(save_dir, frame_num+1)
                     frame_num += step_size
                     save_data = {'ego':ego_preds[b,s,:], 'main':save_data}
-                    if s>=args.skip_beggning and s<seq_len-args.skip_ending:
+                    if s<seq_len-args.skip_ending or store_last:
                         with open(save_name,'wb') as ff:
                             pickle.dump(save_data, ff)
 
@@ -188,10 +217,15 @@ def get_ltype_dets(frame_dets, start_id, numc, ltype, args):
         if frame_dets.shape[0]>0:
             boxes = frame_dets[:, :4].copy()
             scores = frame_dets[:, start_id+cid].copy()
-            # cinds = scores>args.CONF_THRESH
-            # boxes, scores = boxes[cinds,:], scores[cinds]
-            pickn = min(100000, boxes.shape[0])
-            cls_dets = np.hstack((boxes[:pickn,:], scores[:pickn, np.newaxis]))
+            pickn = boxes.shape[0]
+            if args.CLASSWISE_NMS:
+                cls_dets = utils.filter_detections(args, torch.from_numpy(scores), torch.from_numpy(boxes))
+            elif pickn<= args.TOPK:
+                cls_dets = np.hstack((boxes[:pickn,:], scores[:pickn, np.newaxis]))
+            else:
+                sorted_ind = np.argsort(-scores)
+                sorted_ind = sorted_ind[:args.TOPK]
+                cls_dets = np.hstack((boxes[sorted_ind,:], scores[sorted_ind, np.newaxis]))
         else:
             cls_dets = np.asarray([])
         dets.append(cls_dets)
@@ -199,19 +233,26 @@ def get_ltype_dets(frame_dets, start_id, numc, ltype, args):
 
 
 def eval_framewise_dets(args, val_dataset):
-    for iteration in args.EVAL_ITERS:
+    for epoch in args.EVAL_EPOCHS:
         
-        log_file = open("{pt:s}/frame-level-resutls-{it:06d}.log".format(pt=args.SAVE_ROOT, it=iteration), "w", 10)
-        args.det_save_dir = "{pt:s}detections-{it:06d}/".format(pt=args.SAVE_ROOT, it=iteration)
-        args.det_file_name = "{pt:s}frame-level-dets-{it:06d}.pkl".format(pt=args.SAVE_ROOT, it=iteration)
-        # if not os.path.isfile(args.det_file_name):
-        logger.info('Gathering detection at ' + str(iteration))
-        # gather_framelevel_detection(args, val_dataset.video_list)
-        logger.info('Done Gathering detections')
-        result_file = args.SAVE_ROOT + '/frame-map-results.json'
+        log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "w", 10)
+        # args.det_save_dir = "{pt:s}detections-{it:06d}/".format(pt=args.SAVE_ROOT, it=epoch)
+        args.det_save_dir = "{pt:s}/detections-{it:02d}-{sq:02d}/".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+        
+        args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+        if True: #not os.path.isfile(args.det_file_name):
+            logger.info('Gathering detection at ' + str(epoch))
+            gather_framelevel_detection(args, val_dataset.video_list)
+            logger.info('Done Gathering detections')
+        else:
+            logger.info('Detection will be loaded: ' + args.det_file_name)
+            
+        result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         results = {}
         
-        for subset in args.TEST_SUBSETS + args.VAL_SUBSETS:
+        for subset in args.TEST_SUBSETS:
+            if len(subset)<2:
+                continue
             sresults = evaluate_frames(val_dataset.anno_file, args.det_file_name, subset, iou_thresh=0.5)
             for _, label_type in enumerate(args.label_types):
                 name = subset + ' & ' + label_type

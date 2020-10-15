@@ -154,9 +154,9 @@ class ResNetFPN(nn.Module):
         c4 = self.layer3(c3)
         c5 = self.layer4(c4)
 
-        ego_feat = self.ego_lateral(c5)
+        # ego_feat = self.ego_lateral(c5)
         # print(sources[-1].shape)
-        ego_feat = self.avg_pool(ego_feat)
+        
 
         p5 = self.lateral_layer1(c5)
         p5_upsampled = self._upsample(p5, c4)
@@ -175,17 +175,15 @@ class ResNetFPN(nn.Module):
         p7 = self.conv7(F.relu(p6))
 
         features = [p3, p4, p5, p6, p7]
+        
+        ego_feat = self.avg_pool(p7)
         if self.pool2 is not None:
             for i in range(len(features)):
-                # print('in feature shape', features[i].shape)
                 features[i] = self._upsample_time(features[i])
-                # print('out feature shape', features[i].shape)
-            
             ego_feat = self._upsample_time(ego_feat)
         
         return features, ego_feat
 
-    
 
     def identity_state_dict(self):
         state_dict = self.state_dict()

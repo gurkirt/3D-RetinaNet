@@ -8,12 +8,11 @@ import datetime
 import logging 
 import torch
 
+
 # from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/modeling/rpn/anchor_generator.py
 class BufferList(torch.nn.Module):
-    """
-    
+    """    
     Similar to nn.ParameterList, but for buffers
-    
     """
 
     def __init__(self, buffers=None):
@@ -34,26 +33,25 @@ class BufferList(torch.nn.Module):
         return iter(self._buffers.values())
         
 def setup_logger(args):
+    """
+    Sets up the logging.
+    """
     log_file_name = '{:s}/{:s}-{date:%m-%d-%Hx}.log'.format(args.SAVE_ROOT, args.MODE, date=datetime.datetime.now())
     args.log_dir = 'logs/'+args.exp_name+'/'
     if not os.path.isdir(args.log_dir):
         os.makedirs(args.log_dir)
     added_log_file = '{}{}-{date:%m-%d-%Hx}.log'.format(args.log_dir, args.MODE, date=datetime.datetime.now())
 
-    """
-    Sets up the logging.
-    """
+   
     # Set up logging format.
     _FORMAT = "[%(levelname)s: %(filename)s: %(lineno)4d]: %(message)s"
 
-    # Enable logging for the master process.
-    # logging.FileHandler = open("/mnt/mercury-alpha/kinetics-256/cache/RCN_8x8_R50/training.log",'w',1)
     logging.root.handlers = []
     logging.basicConfig(
         level=logging.INFO, format=_FORMAT, stream=sys.stdout
     )
-    logging.getLogger().addHandler(logging.FileHandler(log_file_name))
-    logging.getLogger().addHandler(logging.FileHandler(added_log_file))
+    logging.getLogger().addHandler(logging.FileHandler(log_file_name, mode='a'))
+    logging.getLogger().addHandler(logging.FileHandler(added_log_file, mode='a'))
 
 
 def get_logger(name):
@@ -79,7 +77,7 @@ def set_args(args):
     args.MAX_SIZE = int(args.MIN_SIZE*1.35)
     args.MILESTONES = [int(val) for val in args.MILESTONES.split(',')]
     args.GAMMAS = [float(val) for val in args.GAMMAS.split(',')]
-    args.EVAL_ITERS = [int(val) for val in args.EVAL_ITERS.split(',')]
+    args.EVAL_EPOCHS = [int(val) for val in args.EVAL_EPOCHS.split(',')]
 
     args.TRAIN_SUBSETS = [val for val in args.TRAIN_SUBSETS.split(',') if len(val)>1]
     args.VAL_SUBSETS = [val for val in args.VAL_SUBSETS.split(',') if len(val)>1]
@@ -87,12 +85,12 @@ def set_args(args):
     
     args.model_subtype = args.MODEL_TYPE.split('-')[0]
     ## check if subsets are okay
-    possible_subets = ['test']
+    possible_subets = ['test', 'train']
     for idx in range(1,4):
         possible_subets.append('train_'+str(idx))        
         possible_subets.append('val_'+str(idx))        
 
-    if len(args.VAL_SUBSETS) < 1:
+    if len(args.VAL_SUBSETS) < 1 and args.DATASET == 'aarav':
         args.VAL_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
     if len(args.TEST_SUBSETS) < 1:
         # args.TEST_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
@@ -125,7 +123,7 @@ def set_args(args):
 
     if username == 'gurkirt':
         if hostname == 'mars':
-            args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
+            args.DATA_ROOT = '/mnt/mars-fast/datasets/'
             args.SAVE_ROOT = '/mnt/mercury-alpha/'
         elif hostname == 'venus':
             args.DATA_ROOT = '/mnt/venus-fast/datasets/'
@@ -143,14 +141,13 @@ def set_args(args):
 def create_exp_name(args):
     """Create name of experiment using training parameters """
     splits = ''.join([split[0]+split[-1] for split in args.TRAIN_SUBSETS])
-    args.exp_name = '{:s}{:s}{:d}-P{:s}-b{:0d}s{:d}x{:d}x{:d}-{:s}{:s}-h{:d}x{:d}x{:d}-bn{:d}f{:d}'.format(
+    args.exp_name = '{:s}{:s}{:d}-P{:s}-b{:0d}s{:d}x{:d}x{:d}-{:s}{:s}-h{:d}x{:d}x{:d}'.format(
         args.ARCH, args.MODEL_TYPE,
         args.MIN_SIZE, args.model_init, args.BATCH_SIZE,
         args.SEQ_LEN, args.MIN_SEQ_STEP, args.MAX_SEQ_STEP,
         args.DATASET, splits, 
         args.HEAD_LAYERS, args.CLS_HEAD_TIME_SIZE,
         args.REG_HEAD_TIME_SIZE,
-        int(args.FBN), args.FREEZE_UPTO, 
         )
 
     args.SAVE_ROOT += args.DATASET+'/'
@@ -160,6 +157,7 @@ def create_exp_name(args):
         os.makedirs(args.SAVE_ROOT)
 
     return args
+    
 # Freeze batch normlisation layers
 def set_bn_eval(m):
     classname = m.__class__.__name__
@@ -172,7 +170,7 @@ def set_bn_eval(m):
 
 def get_individual_labels(gt_boxes, tgt_labels):
     # print(gt_boxes.shape, tgt_labels.shape)
-    new_gts = np.zeros((gt_boxes.shape[0]*5, 5))
+    new_gts = np.zeros((gt_boxes.shape[0]*20, 5))
     ccc = 0
     for n in range(tgt_labels.shape[0]):
         for t in range(tgt_labels.shape[1]):
@@ -194,43 +192,40 @@ def filter_detections(args, scores, decoded_boxes_batch):
         return np.asarray([])
     
     boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
-    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*20)  # idsn - ids after nms
+    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*10)  # idsn - ids after nms
     scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
     boxes = boxes[ids[:min(args.TOPK,counts)]].cpu().numpy()
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
-    return cls_dets
 
-def filter_detections(args, scores, decoded_boxes_batch):
-    c_mask = scores.gt(args.CONF_THRESH)  # greater than minmum threshold
-    scores = scores[c_mask].squeeze()
-    if scores.dim() == 0 or scores.shape[0] == 0:
-        return np.asarray([])
-    
-    boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
-    ids, counts = nms(boxes, scores, args.NMS_THRESH, args.TOPK*20)  # idsn - ids after nms
-    scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
-    boxes = boxes[ids[:min(args.TOPK,counts)]].cpu().numpy()
-    cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
     return cls_dets
 
 
-def filter_detections_with_confidences(args, scores, decoded_boxes_batch, confidences):
-    c_mask = scores.gt(args.CONF_THRESH)  # greater than minmum threshold
+def filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidences):
+    c_mask = scores.gt(args.GEN_CONF_THRESH)  # greater than minmum threshold
     scores = scores[c_mask].squeeze()
     if scores.dim() == 0 or scores.shape[0] == 0:
-        return np.zeros((0,200))
+        return np.zeros((0,5)), np.zeros((0,200))
     
     boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
     numc = confidences.shape[-1]
     confidences = confidences[c_mask,:].clone().view(-1, numc)
-    ids, counts = nms(boxes, scores, args.NMS_THRESH, 2000)  # idsn - ids after nms
-    scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
-    boxes = boxes[ids[:min(args.TOPK,counts)],:].cpu().numpy()
-    confidences = confidences[ids[:min(args.TOPK, counts)],:].cpu().numpy()
+
+    # sorted_ind = np.argsort(-scores.cpu().numpy())
+    # sorted_ind = sorted_ind[:topk*10]
+    # boxes_np = boxes.cpu().numpy()
+    # confidences_np = confidences.cpu().numpy()
+    # save_data = np.hstack((boxes_np[sorted_ind,:], confidences_np[sorted_ind, :]))
+    # args.GEN_TOPK, args.GEN_NMS, 
+    max_k = min(args.GEN_TOPK*20, scores.shape[0])
+    ids, counts = nms(boxes, scores, args.GEN_NMS, max_k)  # idsn - ids after nms
+    scores = scores[ids[:min(args.GEN_TOPK,counts)]].cpu().numpy()
+    boxes = boxes[ids[:min(args.GEN_TOPK,counts)],:].cpu().numpy()
+    confidences = confidences[ids[:min(args.GEN_TOPK, counts)],:].cpu().numpy()
     cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
     save_data = np.hstack((cls_dets, confidences[:,1:])).astype(np.float32)
+    # print(save_data.shape)
+    return cls_dets, save_data
 
-    return save_data
 
 def eval_strings():
     return ["Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = ",

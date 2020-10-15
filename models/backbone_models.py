@@ -25,6 +25,7 @@ def backbone_models(args):
 
     model = resnetfpn(args)
 
+    # if args.MODE == 'train':
     if MODEL_TYPE.startswith('RCN'):
         model.identity_state_dict()
     if MODEL_TYPE.startswith('RCGRU') or MODEL_TYPE.startswith('RCLSTM'):

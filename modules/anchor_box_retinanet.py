@@ -58,7 +58,7 @@ class anchorBox(torch.nn.Module):
         # transform from (x_ctr, y_ctr, w, h) -> (x1, y1, x2, y2)
         anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
         anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T
-        print(anchors)
+        # print(anchors)
         return anchors
 
     # forward from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/modeling/rpn/anchor_generator.py
