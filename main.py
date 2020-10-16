@@ -87,11 +87,13 @@ def main():
                         type=str, help='Gamma update for SGD')
     parser.add_argument('--WEIGHT_DECAY', default=1e-4, 
                         type=float, help='Weight decay for SGD')
+    
     # Freeze layers or not 
     parser.add_argument('--FBN','--FREEZE_BN', default=True, 
                         type=str2bool, help='freeze bn layers if true or else keep updating bn layers')
     parser.add_argument('--FREEZE_UPTO', default=1, 
                         type=int, help='layer group number in ResNet up to which needs to be frozen')
+    
     # Loss function matching threshold
     parser.add_argument('--POSTIVE_THRESHOLD', default=0.5, 
                         type=float, help='Min threshold for Jaccard index for matching')
@@ -105,7 +107,7 @@ def main():
                         type=int, help='Number of training epoch before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold')
-    parser.add_argument('--CONF_THRESH', default=0.05, 
+    parser.add_argument('--CONF_THRESH', default=0.01, 
                         type=float, help='Confidence threshold for evaluation')
     parser.add_argument('--NMS_THRESH', default=0.45, 
                         type=float, help='NMS threshold')
@@ -209,7 +211,7 @@ def main():
     else:
         args.SEQ_LEN = args.TEST_SEQ_LEN
         args.MAX_SEQ_STEP = 1
-        args.SUBSETS = args.TEST_SUBSETS + args.VAL_SUBSETS
+        args.SUBSETS = args.TEST_SUBSETS #+ args.VAL_SUBSETS
         full_test = True #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0

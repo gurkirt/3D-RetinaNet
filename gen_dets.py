@@ -245,7 +245,7 @@ def eval_framewise_dets(args, val_dataset):
         args.det_save_dir = "{pt:s}/detections-{it:02d}-{sq:02d}/".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
 
-        if True: #not os.path.isfile(args.det_file_name):
+        if not os.path.isfile(args.det_file_name):
             logger.info('Gathering detection at ' + str(epoch))
             gather_framelevel_detection(args, val_dataset.video_list)
             logger.info('Done Gathering detections')

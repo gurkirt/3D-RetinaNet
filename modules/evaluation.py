@@ -227,7 +227,7 @@ def evaluate_ego(gts, dets, classes):
             str(num_postives) + ' : ' + str(det_count) + ' : ' + str(cls_ap)
         ap_strs.append(ap_str)
 
-    return [np.mean(ap_all)], [ap_all], [ap_strs]
+    return np.mean(ap_all), ap_all, ap_strs
 
 
 def get_gt_tubes(final_annots, subset, label_type):
@@ -346,6 +346,7 @@ def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou
         ap_strs.append(ap_str)
     mAP = sap/len(classes)
     ap_strs.append('\nMean AP:: {:0.2f}'.format(mAP))
+
     return mAP, ap_all, ap_strs
 
 
@@ -396,17 +397,18 @@ def eval_framewise_ego_actions_aarav(final_annots, detections, subsets):
 
     if not isinstance(subsets, list):
         subsets = [subsets]
-    label_key = 'av_actions'
+    label_key = 'av_action'
     filtered_gts = []
     filtered_preds = []
     all_labels = final_annots['all_'+label_key+'_labels']
     labels = final_annots[label_key+'_labels']
     for videoname in final_annots['db']:
-        if (final_annots['db'][videoname]['split_ids'], subsets):
-            label_key = 'av_actions'
+        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
+            # label_key = 'av_actions'
             frames = final_annots['db'][videoname]['frames']
             
             for frame_id , frame in frames.items():
+                # frame_name = '{:08d}'.format(int(frame_id))
                 frame_name = '{:08d}'.format(int(frame_id))
                 if frame['annotated']>0:
                     gts = filter_labels(frame[label_key+'_ids'], all_labels, labels)
@@ -441,14 +443,16 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'
     
     for nlt, label_type in enumerate(label_types):
         if label_type in ['av_actions', 'frame_actions']:
-            eval_framewise_ego_actions(final_annots, detections[label_type], subset, dataset)
+            mAP, ap_all, ap_strs = eval_framewise_ego_actions(final_annots, detections[label_type], subset, dataset)
+            for apstr in ap_strs:
+                logger.info(apstr)
         else:
             ap_all = []
             ap_strs = []
             sap = 0.0
             _, gt_frames = get_gt_frames(final_annots, subset, label_type)
             
-            if nlt==0:
+            if label_type == 'agent_ness':
                 classes = ['agent_ness']
             else:
                 classes = final_annots[label_type+'_labels']
@@ -468,8 +472,8 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'
                     ' : ' + str(count) + ' : ' + str(class_ap)
                 logger.info(ap_str)
                 ap_strs.append(ap_str)
-        mAP = sap/len(classes)
-        ap_strs.append('\n'+label_type+' Mean AP:: {:0.2f}'.format(mAP))
+            mAP = sap/len(classes)
+            ap_strs.append('\n'+label_type+' Mean AP:: {:0.2f}'.format(mAP))
         results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs}
     
     return results
