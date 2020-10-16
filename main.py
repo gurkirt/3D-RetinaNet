@@ -209,7 +209,7 @@ def main():
     else:
         args.SEQ_LEN = args.TEST_SEQ_LEN
         args.MAX_SEQ_STEP = 1
-        args.SUBSETS = args.TEST_SUBSETS #+ args.VAL_SUBSETS
+        args.SUBSETS = args.TEST_SUBSETS + args.VAL_SUBSETS
         full_test = True #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0
