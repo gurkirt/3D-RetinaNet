@@ -31,27 +31,27 @@ def gen_dets(args, net, val_dataset):
         args.det_save_dir = os.path.join(args.SAVE_ROOT, "detections-{it:02d}-{sq:02d}/".format(it=epoch, sq=args.TEST_SEQ_LEN))
         logger.info('detection saving dir is :: '+args.det_save_dir)
         
-        # is_all_done = True
-        # if os.path.isdir(args.det_save_dir):
-        #     for vid, videoname in enumerate(val_dataset.video_list):
-        #         save_dir = '{:s}/{}'.format(args.det_save_dir, videoname)
-        #         if os.path.isdir(save_dir):
-        #             numf = val_dataset.numf_list[vid]
-        #             dets_list = [d for d in os.listdir(save_dir) if d.endswith('.pkl')]
-        #             if numf != len(dets_list):
-        #                 is_all_done = False
-        #                 print('Not done', save_dir, numf, len(dets_list))
-        #                 break 
-        #         else:
-        #             is_all_done = False
-        #             break
-        # else:
-        #     is_all_done = False
-        #     os.makedirs(args.det_save_dir)
+        is_all_done = True
+        if os.path.isdir(args.det_save_dir):
+            for vid, videoname in enumerate(val_dataset.video_list):
+                save_dir = '{:s}/{}'.format(args.det_save_dir, videoname)
+                if os.path.isdir(save_dir):
+                    numf = val_dataset.numf_list[vid]
+                    dets_list = [d for d in os.listdir(save_dir) if d.endswith('.pkl')]
+                    if numf != len(dets_list):
+                        is_all_done = False
+                        print('Not done', save_dir, numf, len(dets_list))
+                        break 
+                else:
+                    is_all_done = False
+                    break
+        else:
+            is_all_done = False
+            os.makedirs(args.det_save_dir)
         
-        # if is_all_done:
-        #     print('All done! skipping detection')
-        #     continue
+        if is_all_done:
+            print('All done! skipping detection')
+            continue
         
         args.MODEL_PATH = args.SAVE_ROOT + 'model_{:06d}.pth'.format(epoch)
         net.load_state_dict(torch.load(args.MODEL_PATH))
