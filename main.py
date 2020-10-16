@@ -105,7 +105,7 @@ def main():
                         type=int, help='Number of training epoch before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold')
-    parser.add_argument('--CONF_THRESH', default=0.01, 
+    parser.add_argument('--CONF_THRESH', default=0.05, 
                         type=float, help='Confidence threshold for evaluation')
     parser.add_argument('--NMS_THRESH', default=0.45, 
                         type=float, help='NMS threshold')

@@ -90,7 +90,7 @@ def validate(args, net,  val_data_loader, val_dataset, iteration_num):
                     gt_boxes_batch = gt_boxes[b, s, :batch_counts[b, s],:].numpy()
                     gt_labels_batch =  gt_targets[b, s, :batch_counts[b, s]].numpy()
 
-                    decoded_boxes_batch = decoded_boxes[b, s]
+                    decoded_boxes_frame = decoded_boxes[b, s].clone()
                     
                     cc = 0 
                     for nlt in range(args.num_label_types):
@@ -103,7 +103,7 @@ def validate(args, net,  val_data_loader, val_dataset, iteration_num):
                         for cl_ind in range(num_c):
                             scores = confidence[b, s, :, cc].clone().squeeze()
                             cc += 1
-                            cls_dets = utils.filter_detections(args, scores, decoded_boxes_batch)
+                            cls_dets = utils.filter_detections(args, scores, decoded_boxes_frame)
                             det_boxes[nlt][cl_ind].append(cls_dets)
                 count += 1 
 
