@@ -213,8 +213,8 @@ def evaluate_ego(gts, dets, classes):
     ap_strs = []
     num_frames = gts.shape[0]
     logger.info('Evaluating for ' + str(num_frames) + ' frames')
-    ap_all = np.zeros(len(classes), dtype=np.float32)
-
+    ap_all = []
+    sap = 0.0
     for cls_ind, class_name in enumerate(classes):
         scores = dets[:, cls_ind]
         istp = np.zeros_like(gts)
@@ -222,12 +222,16 @@ def evaluate_ego(gts, dets, classes):
         det_count = num_frames
         num_postives = np.sum(istp)
         cls_ap = get_class_ap_from_scores(scores, istp, num_postives)
-        ap_all[cls_ind] = cls_ap
+        ap_all.append(cls_ap)
+        sap += cls_ap
         ap_str = class_name + ' : ' + \
             str(num_postives) + ' : ' + str(det_count) + ' : ' + str(cls_ap)
         ap_strs.append(ap_str)
-
-    return np.mean(ap_all), ap_all, ap_strs
+    
+    mAP = sap/len(classes)
+    ap_strs.append('FRAME Mean AP:: {:0.2f}'.format(mAP))
+    
+    return mAP, ap_all, ap_strs
 
 
 def get_gt_tubes(final_annots, subset, label_type):
