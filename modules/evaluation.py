@@ -403,7 +403,7 @@ def eval_framewise_ego_actions_aarav(final_annots, detections, subsets):
     labels = final_annots[label_key+'_labels']
     for videoname in final_annots['db']:
         if (final_annots['db'][videoname]['split_ids'], subsets):
-            label_key = 'av_action'
+            label_key = 'av_actions'
             frames = final_annots['db'][videoname]['frames']
             
             for frame_id , frame in frames.items():
@@ -435,12 +435,12 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'
 
     results = {}
     if dataset == 'aarav':
-        label_types = ['av_action'] + ['agent_ness'] + final_annots['label_types']
+        label_types = ['av_actions'] + ['agent_ness'] + final_annots['label_types']
     else:
-        label_types = ['frame_action', 'action_ness', 'action']
+        label_types = ['frame_actions', 'action_ness', 'action']
     
     for nlt, label_type in enumerate(label_types):
-        if label_type == 'ego':
+        if label_type in ['av_actions', 'frame_actions']:
             eval_framewise_ego_actions(final_annots, detections[label_type], subset, dataset)
         else:
             ap_all = []
