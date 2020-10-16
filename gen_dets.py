@@ -132,11 +132,8 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
 
                 if not os.path.isdir(save_dir):
                     os.makedirs(save_dir)
-                
                 count += 1
-
                 for s in range(seq_len):
-                    
                     if ego_labels[b,s]>-1:
                         ego_pds.append(ego_preds[b,s,:])
                         ego_gts.append(ego_labels[b,s])
@@ -180,7 +177,7 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
 def gather_framelevel_detection(args, video_list):
     
     detections = {}
-    for l, ltype in enumerate(args.label_types + ['av_action']):
+    for l, ltype in enumerate(args.label_types):
         detections[ltype] = {}
 
     for videoname in video_list:       
@@ -198,6 +195,8 @@ def gather_framelevel_detection(args, video_list):
             frame_dets = dets['main']
             start_id = 4
             for l, ltype in enumerate(args.label_types):
+                if ltype in ['av_action', 'frame_action']:
+                    continue
                 numc = args.num_classes_list[l]
                 ldets = get_ltype_dets(frame_dets, start_id, numc, ltype, args)
                 detections[ltype][videoname+frame_name] = ldets
@@ -238,9 +237,13 @@ def eval_framewise_dets(args, val_dataset):
         log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "w", 10)
         # args.det_save_dir = "{pt:s}detections-{it:06d}/".format(pt=args.SAVE_ROOT, it=epoch)
         args.det_save_dir = "{pt:s}/detections-{it:02d}-{sq:02d}/".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+        if args.DATASET == 'aarav':
+            args.label_types =  args.label_types + ['av_action']
+        else:
+            args.label_type = ['action_ness', 'action', 'frame_action']
         
         args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
-        if True: #not os.path.isfile(args.det_file_name):
+        if not os.path.isfile(args.det_file_name):
             logger.info('Gathering detection at ' + str(epoch))
             gather_framelevel_detection(args, val_dataset.video_list)
             logger.info('Done Gathering detections')

@@ -11,7 +11,7 @@ import pdb
 import pickle
 import numpy as np
 import scipy.io as io  # to save detection as mat files
-from data.datasets import is_part_of_subsets, get_filtered_tubes, get_filtered_frames, get_av_actions
+from data.datasets import is_part_of_subsets, get_filtered_tubes, get_filtered_frames, filter_labels
 from modules.tube_helper import get_tube_3Diou, make_det_tube
 from modules import utils
 logger = utils.get_logger(__name__)
@@ -171,12 +171,12 @@ def evaluate_detections(gt_boxes, det_boxes, classes=[], iou_thresh=0.5):
     return mAP, ap_all, ap_strs
 
 
-def filter_labels(labels, n):
-    new_labels = []
-    for k in range(labels.shape[1]):
-        if labels[n, k] > -1:
-            new_labels.append(int(labels[n, k]))
-    return new_labels
+# def filter_labels(labels, n):
+#     new_labels = []
+#     for k in range(labels.shape[1]):
+#         if labels[n, k] > -1:
+#             new_labels.append(int(labels[n, k]))
+#     return new_labels
 
 
 def evaluate(gts, dets, all_classes, iou_thresh=0.5):
@@ -389,7 +389,44 @@ def get_gt_class_frames(gts, cl_id):
     return frames
 
 
-def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5):
+def eval_framewise_ego_actions_aarav(final_annots, detections, subsets):
+    """Get video list form ground truth videos used in subset 
+    and their ground truth frames """
+
+
+    if not isinstance(subsets, list):
+        subsets = [subsets]
+    label_key = 'av_actions'
+    filtered_gts = []
+    filtered_preds = []
+    all_labels = final_annots['all_'+label_key+'_labels']
+    labels = final_annots[label_key+'_labels']
+    for videoname in final_annots['db']:
+        if (final_annots['db'][videoname]['split_ids'], subsets):
+            label_key = 'av_action'
+            frames = final_annots['db'][videoname]['frames']
+            
+            for frame_id , frame in frames.items():
+                frame_name = '{:08d}'.format(int(frame_id))
+                if frame['annotated']>0:
+                    gts = filter_labels(frame[label_key+'_ids'], all_labels, labels)
+                    filtered_gts.append(gts)
+                    frame_name = '{:08d}'.format(int(frame_id))
+                    filtered_preds.append(detections[videoname+frame_name])
+
+    gts = np.asarray(filtered_gts)
+    preds = np.asarray(filtered_preds)
+    return evaluate_ego(gts, preds, labels)
+    
+
+def eval_framewise_ego_actions(final_annots, detections, subsets, dataset='arrav'):
+    if dataset == 'aarav':
+        return eval_framewise_ego_actions_aarav(final_annots, detections, subsets)
+    else:
+        raise Exception('Not implemented yet eval_framewise_ego_actions')
+
+
+def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'):
     with open(anno_file, 'r') as fff:
         final_annots = json.load(fff)
 
@@ -397,34 +434,40 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5):
         detections = pickle.load(fff)
 
     results = {}
-    label_types = ['agent_ness'] + final_annots['label_types']
+    if dataset == 'aarav':
+        label_types = ['av_action'] + ['agent_ness'] + final_annots['label_types']
+    else:
+        label_types = ['frame_action', 'action_ness', 'action']
     
     for nlt, label_type in enumerate(label_types):
-        ap_all = []
-        ap_strs = []
-        sap = 0.0
-        _, gt_frames = get_gt_frames(final_annots, subset, label_type)
-        
-        if nlt==0:
-            classes = ['agent_ness']
+        if label_type == 'ego':
+            eval_framewise_ego_actions(final_annots, detections[label_type], subset, dataset)
         else:
-            classes = final_annots[label_type+'_labels']
-        
-        for cl_id, class_name in enumerate(classes):
-            ## gather gt of class "class_name" from frames which are not marked igonre
-            class_gts = get_gt_class_frames(gt_frames, cl_id)
-            frame_ids = [f for f in class_gts.keys()]
-            ## gather detection from only that are there in gt or not marked ignore
-            class_dets = get_det_class_frames(detections[label_type], cl_id, frame_ids) 
+            ap_all = []
+            ap_strs = []
+            sap = 0.0
+            _, gt_frames = get_gt_frames(final_annots, subset, label_type)
             
-            class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, compute_iou_dict, iou_thresh)
+            if nlt==0:
+                classes = ['agent_ness']
+            else:
+                classes = final_annots[label_type+'_labels']
+            
+            for cl_id, class_name in enumerate(classes):
+                ## gather gt of class "class_name" from frames which are not marked igonre
+                class_gts = get_gt_class_frames(gt_frames, cl_id)
+                frame_ids = [f for f in class_gts.keys()]
+                ## gather detection from only that are there in gt or not marked ignore
+                class_dets = get_det_class_frames(detections[label_type], cl_id, frame_ids) 
+                
+                class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, compute_iou_dict, iou_thresh)
 
-            sap += class_ap
-            ap_all.append(class_ap)
-            ap_str = class_name + ' : ' + str(num_postives) + \
-                ' : ' + str(count) + ' : ' + str(class_ap)
-            logger.info(ap_str)
-            ap_strs.append(ap_str)
+                sap += class_ap
+                ap_all.append(class_ap)
+                ap_str = class_name + ' : ' + str(num_postives) + \
+                    ' : ' + str(count) + ' : ' + str(class_ap)
+                logger.info(ap_str)
+                ap_strs.append(ap_str)
         mAP = sap/len(classes)
         ap_strs.append('\n'+label_type+' Mean AP:: {:0.2f}'.format(mAP))
         results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs}
