@@ -174,7 +174,11 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
     return mAP + mAP_ego, ap_all + ap_all_ego, ap_strs + ap_strs_ego
 
 
-def gather_framelevel_detection(args, video_list):
+
+def make_joint_probs_from_marginals(frame_dets, childs, args):
+    raise Exception('Not implemented')
+
+def gather_framelevel_detection(args, val_dataset):
     
     detections = {}
     for l, ltype in enumerate(args.label_types):
@@ -185,7 +189,7 @@ def gather_framelevel_detection(args, video_list):
     else:
         detections['frame_actions'] = {}
 
-    for videoname in video_list:       
+    for videoname in val_dataset.video_list:       
         vid_dir = os.path.join(args.det_save_dir, videoname)
         frames_list = os.listdir(vid_dir)
         for frame_name in frames_list:
@@ -201,7 +205,11 @@ def gather_framelevel_detection(args, video_list):
             else:
                 detections['frame_actions'][videoname+frame_name] = dets['ego']
             frame_dets = dets['main']
+            if args.JOINT_4M_MARGINALS:
+                frame_dets = make_joint_probs_from_marginals(frame_dets, val_dataset.childs, args)
+            
             start_id = 4
+            
             for l, ltype in enumerate(args.label_types):
                 numc = args.num_classes_list[l]
                 ldets = get_ltype_dets(frame_dets, start_id, numc, ltype, args)
@@ -241,13 +249,16 @@ def eval_framewise_dets(args, val_dataset):
     for epoch in args.EVAL_EPOCHS:
         
         log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "w", 10)
-        # args.det_save_dir = "{pt:s}detections-{it:06d}/".format(pt=args.SAVE_ROOT, it=epoch)
         args.det_save_dir = "{pt:s}/detections-{it:02d}-{sq:02d}/".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
-
-        if not os.path.isfile(args.det_file_name):
+        result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+        if args.JOINT_4M_MARGINALS:
+            args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}-j4m.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+            result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}-j4m.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+        
+        if True:#not os.path.isfile(args.det_file_name):
             logger.info('Gathering detection at ' + str(epoch))
-            gather_framelevel_detection(args, val_dataset.video_list)
+            gather_framelevel_detection(args, val_dataset)
             logger.info('Done Gathering detections')
         else:
             logger.info('Detection will be loaded: ' + args.det_file_name)
@@ -258,6 +269,7 @@ def eval_framewise_dets(args, val_dataset):
             args.label_type = args.label_types + ['frame_actions']
 
         result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+        
         results = {}
         
         for subset in args.TEST_SUBSETS:

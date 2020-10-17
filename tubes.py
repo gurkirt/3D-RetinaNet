@@ -61,6 +61,7 @@ def build_eval_tubes(args, val_dataset):
             # return  aps, aps_all, ap_strs
             with open(result_file, 'w') as f:
                 json.dump(results, f)
+
         logger.info('Results are saved at '+ result_file)
         log_file.close()
 
@@ -87,13 +88,14 @@ def perform_building(args, video_list, epoch):
                 save_name = '{:s}/{:08d}.pkl'.format(video_dir, frame_num)
                 with open(save_name, 'rb') as f:
                     det_boxes = pickle.load(f)
+                
                 det_boxes = det_boxes['main']
                 num_dets = 0
                 if det_boxes.shape[0]>0:
                     frame = {}
                     frame['boxes'] = det_boxes[:,:4]
                     frame['scores'] = det_boxes[:,4]
-                    frame['allScores'] = det_boxes[:,5:]
+                    frame['allScores'] = det_boxes[:,4:]
                     num_dets = det_boxes.shape[0]
 
                     live_paths, dead_paths = gen_paths.update_agent_paths(live_paths, 

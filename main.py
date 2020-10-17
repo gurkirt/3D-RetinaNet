@@ -121,6 +121,8 @@ def main():
                         type=float, help='topk at the time of generation')
     parser.add_argument('--CLASSWISE_NMS', default=True, 
                         type=str2bool, help='topk at the time of generation')
+    parser.add_argument('--JOINT_4M_MARGINALS', default=False, 
+                        type=str2bool, help='topk at the time of generation')
     ## paths hyper parameters
     parser.add_argument('--COMPUTE_PATHS', default=False, 
                         type=str2bool, help=' COMPUTE_PATHS')
@@ -188,6 +190,7 @@ def main():
         args.SEQ_LEN = args.TEST_SEQ_LEN
 
     if args.MODE in ['train','val']:
+        # args.CONF_THRESH = 0.05
         args.SUBSETS = args.TRAIN_SUBSETS
         train_transform = transforms.Compose([
                             vtf.ResizeClip(args.MIN_SIZE, args.MAX_SIZE),
@@ -211,7 +214,7 @@ def main():
     else:
         args.SEQ_LEN = args.TEST_SEQ_LEN
         args.MAX_SEQ_STEP = 1
-        args.SUBSETS = args.TEST_SUBSETS #+ args.VAL_SUBSETS
+        args.SUBSETS = args.TEST_SUBSETS + args.VAL_SUBSETS
         full_test = True #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0
