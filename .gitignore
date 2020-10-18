@@ -17,3 +17,4 @@ weights/
 .idea/
 __pycache__/
 tempr_logs/
+tallied_results.txt

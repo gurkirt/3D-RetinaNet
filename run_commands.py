@@ -25,7 +25,7 @@ if __name__ == '__main__':
     print('Number of cpus', mp.cpu_count())
     print('Number of commands', len(cmds))
 
-    pool = mp.Pool(mp.cpu_count())
+    pool = mp.Pool(10)
     results = pool.map(run_exp, [row for row in cmds])
 
     pool.close()

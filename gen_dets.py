@@ -176,7 +176,11 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
 
 
 def make_joint_probs_from_marginals(frame_dets, childs, args):
+    pdb.set_trace()
+    
     raise Exception('Not implemented')
+
+
 
 def gather_framelevel_detection(args, val_dataset):
     
@@ -248,15 +252,16 @@ def get_ltype_dets(frame_dets, start_id, numc, ltype, args):
 def eval_framewise_dets(args, val_dataset):
     for epoch in args.EVAL_EPOCHS:
         
-        log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "w", 10)
+        log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "a", 10)
         args.det_save_dir = "{pt:s}/detections-{it:02d}-{sq:02d}/".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         if args.JOINT_4M_MARGINALS:
+            log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}-j4m.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "a", 10)
             args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}-j4m.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
             result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}-j4m.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         
-        if True:#not os.path.isfile(args.det_file_name):
+        if not os.path.isfile(args.det_file_name):
             logger.info('Gathering detection at ' + str(epoch))
             gather_framelevel_detection(args, val_dataset)
             logger.info('Done Gathering detections')
@@ -272,7 +277,7 @@ def eval_framewise_dets(args, val_dataset):
         
         results = {}
         
-        for subset in args.TEST_SUBSETS:
+        for subset in args.SUBSETS:
             if len(subset)<2:
                 continue
             sresults = evaluate_frames(val_dataset.anno_file, args.det_file_name, subset, iou_thresh=0.5)

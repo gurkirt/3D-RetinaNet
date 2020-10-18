@@ -86,5 +86,8 @@ agent_ness : 82465 : 330748 : 70.15333771705627
 # python main.py --MODE=gen_dets --MODEL_TYPE=I3D --TRAIN_SUBSETS=train_1 
 # python main.py --MODE=gen_dets --MODEL_TYPE=RCN --TRAIN_SUBSETS=train_1
 # python main.py --MODE=gen_dets --MODEL_TYPE=C2D --TRAIN_SUBSETS=train_1
-# python main.py --MODE=train --MODEL_TYPE=RCLSTM --TRAIN_SUBSETS=train_1
+#CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --MODE=train --MODEL_TYPE=RCLSTM --TRAIN_SUBSETS=train_1
 # python main.py --MODE=train --MODEL_TYPE=RCN --MODEL_PATH=kinetics --SEQ_LEN=16 --CLS_HEAD_TIME_SIZE=3 --REG_HEAD_TIME_SIZE=3 --MIN_SIZE=512
+
+
+CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py --MODE=train --MODEL_TYPE=RCN --DATASET=ucf24 --TRAIN_SUBSETS=train --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245 --RESUME=9 --MILESTONES=6,8 --MAX_EPOCHS=10

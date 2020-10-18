@@ -31,9 +31,9 @@ def main():
                         type=str, help='type of anchors to be used in model')
     parser.add_argument('--MODEL_PATH', default='kinetics',
                         help='Location to where imagenet pretrained models exists')  # /mnt/mars-fast/datasets/
-    parser.add_argument('--SEQ_LEN', default=16,
+    parser.add_argument('--SEQ_LEN', default=8,
                         type=int, help='NUmber of input frames')
-    parser.add_argument('--TEST_SEQ_LEN', default=16,
+    parser.add_argument('--TEST_SEQ_LEN', default=32,
                         type=int, help='NUmber of input frames')
     parser.add_argument('--MIN_SEQ_STEP', default=1,
                         type=int, help='DIFFERENCE of gap between the frames of sequence')
@@ -63,7 +63,7 @@ def main():
                         type=int, help='Input Size for FPN')
     
     #  data loading argumnets
-    parser.add_argument('-b','--BATCH_SIZE', default=8, 
+    parser.add_argument('-b','--BATCH_SIZE', default=4, 
                         type=int, help='Batch size for training')
     parser.add_argument('--TEST_BATCH_SIZE', default=1, 
                         type=int, help='Batch size for testing')
