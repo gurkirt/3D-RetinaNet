@@ -171,7 +171,7 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
 
     mAP, ap_all, ap_strs = evaluate.evaluate(gt_boxes_all, det_boxes, args.all_classes, iou_thresh=args.IOU_THRESH)
     mAP_ego, ap_all_ego, ap_strs_ego = evaluate.evaluate_ego(np.asarray(ego_gts), np.asarray(ego_pds),  args.ego_classes)
-    return mAP + mAP_ego, ap_all + ap_all_ego, ap_strs + ap_strs_ego
+    return mAP + [mAP_ego], ap_all + [ap_all_ego], ap_strs + [ap_strs_ego]
 
 
 

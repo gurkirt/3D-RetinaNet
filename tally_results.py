@@ -12,14 +12,16 @@ if __name__ == '__main__':
     count = 0
     cmds = []
     base = '/mnt/mercury-alpha/aarav/cache/resnet50'
-    table = 'model & train-1 & tain 2 & train 3\\\\ \nlabel-type '
+    table = 'Train-Set & \\multicolumn{5}{c}{Train-1} & \\multicolumn{5}{c}{Train-2}  \\multicolumn{5}{c}{Train-3} \\\\ \n\\midrule\nModel \\textbackslash Label '
     label_types = ['agent', 'action', 'loc', 'duplex', 'triplet']
     for l in label_types*3:
-        table += ' & ' + l.replace('_','-')  
-    table += '\\\\ \n'
-    for net,d in [('C2D',1), ('I3D',1),('RCN',1)]:
+        table += ' & ' + l.replace('_','-').capitalize() 
+    table += '\\\\ \n\\midrule\n'
+    for net,d in [('C2D',1), ('I3D',1),('RCN',1), ('RCLSTM',1)]:
         for seq, bs, tseqs in [(16,8, [16,32]), (8,4,[8,32])]:
             for tseq in tseqs: 
+                if net == 'RCLSTM' and seq == 16:
+                    continue
                 table += '{:s}-{:02d}-{:02d} '.format(net, seq, tseq)
                 for train_subset in ['train_1', 'train_2','train_3']:
                     splitn = train_subset[-1]
@@ -35,9 +37,9 @@ if __name__ == '__main__':
                         print('NON', result_file)
                     # print(results)
                     for label_type in label_types:
-                        for subset, pp in [('test','  & ')]: # ('val_'+splitn,'/'),
+                        for subset, pp in [('val_'+splitn,' & '), ('test','/')]: #,
                             tag  = subset + ' & ' + label_type
-                            if results is None:
+                            if results is None or tag not in results:
                                 table +=  '{:s} -- '.format(pp)
                             else:
                                 num = results[tag]['mAP']

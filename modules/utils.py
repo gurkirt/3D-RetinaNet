@@ -85,7 +85,7 @@ def set_args(args):
     
     args.model_subtype = args.MODEL_TYPE.split('-')[0]
     ## check if subsets are okay
-    possible_subets = ['test', 'train']
+    possible_subets = ['test', 'train','val']
     for idx in range(1,4):
         possible_subets.append('train_'+str(idx))        
         possible_subets.append('val_'+str(idx))        
