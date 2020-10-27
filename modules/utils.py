@@ -200,6 +200,27 @@ def filter_detections(args, scores, decoded_boxes_batch):
     return cls_dets
 
 
+def filter_detections_for_tubing(args, scores, decoded_boxes_batch, confidences):
+    c_mask = scores.gt(args.CONF_THRESH)  # greater than minmum threshold
+    scores = scores[c_mask].squeeze()
+    if scores.dim() == 0 or scores.shape[0] == 0:
+        return  np.zeros((0,200))
+    
+    boxes = decoded_boxes_batch[c_mask, :].clone().view(-1, 4)
+    numc = confidences.shape[-1]
+    confidences = confidences[c_mask,:].clone().view(-1, numc)
+
+    max_k = min(args.TOPK*6, scores.shape[0])
+    ids, counts = nms(boxes, scores, args.NMS_THRESH, max_k)  # idsn - ids after nms
+    scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
+    boxes = boxes[ids[:min(args.TOPK,counts)],:].cpu().numpy()
+    confidences = confidences[ids[:min(args.TOPK, counts)],:].cpu().numpy()
+    cls_dets = np.hstack((boxes, scores[:, np.newaxis])).astype(np.float32, copy=True)
+    save_data = np.hstack((cls_dets, confidences[:,1:])).astype(np.float32)
+    #print(save_data.shape)
+    return save_data
+
+
 def filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidences):
     c_mask = scores.gt(args.GEN_CONF_THRESH)  # greater than minmum threshold
     scores = scores[c_mask].squeeze()

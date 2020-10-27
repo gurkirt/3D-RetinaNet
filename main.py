@@ -124,7 +124,7 @@ def main():
     parser.add_argument('--JOINT_4M_MARGINALS', default=False, 
                         type=str2bool, help='topk at the time of generation')
     ## paths hyper parameters
-    parser.add_argument('--COMPUTE_PATHS', default=False, 
+    parser.add_argument('--COMPUTE_PATHS', default=True, 
                         type=str2bool, help=' COMPUTE_PATHS')
     parser.add_argument('--PATHS_IOUTH', default=0.1,
                         type=float, help='Iouth for building paths')
@@ -134,15 +134,19 @@ def main():
                         type=int, help='eval PATHS_JUMP_GAP')
     parser.add_argument('--PATHS_MIN_LEN', default=6,
                         type=int, help='eval PATHS_MIN_LEN')
-    parser.add_argument('--PATHS_MINSCORE', default=0.3,
+    parser.add_argument('--PATHS_MINSCORE', default=0.1,
                         type=float, help='eval PATHS_MINSCORE')
     
     ## paths hyper parameters
-    parser.add_argument('--COMPUTE_TUBES', default=False, type=str2bool, help='eval COMPUTE_TUBES')
+    parser.add_argument('--COMPUTE_TUBES', default=True, type=str2bool, help='eval COMPUTE_TUBES')
     parser.add_argument('--TUBES_ALPHA', default=5,
                         type=float, help='eval TUBES_ALPHA')
     parser.add_argument('--TUBES_TOPK', default=3,
                         type=int, help='eval TUBES_TOPK')
+    parser.add_argument('--TUBES_MINLEN', default=5,
+                        type=int, help='eval TUBES_TOPK')
+    parser.add_argument('--TUBES_EVAL_THRESH', default=0.2,
+                        type=float, help='eval TUBES_Thtrshold at evaluation time')
     
     # Progress logging
     parser.add_argument('--LOG_START', default=10, 
@@ -214,7 +218,7 @@ def main():
     else:
         args.SEQ_LEN = args.TEST_SEQ_LEN
         args.MAX_SEQ_STEP = 1
-        args.SUBSETS = args.TEST_SUBSETS + args.VAL_SUBSETS
+        args.SUBSETS = args.VAL_SUBSETS # + args.TEST_SUBSETS + 
         full_test = True #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0

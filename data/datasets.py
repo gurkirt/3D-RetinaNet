@@ -24,20 +24,65 @@ from random import shuffle
 
 logger = utils.get_logger(__name__)
 
-ucf_classes = ['Basketball', 'BasketballDunk', 'Biking', 'CliffDiving', 'CricketBowling', 'Diving', 'Fencing',
-                    'FloorGymnastics', 'GolfSwing', 'HorseRiding', 'IceDancing', 'LongJump', 'PoleVault', 'RopeClimbing',
-                    'SalsaSpin','SkateBoarding', 'Skiing', 'Skijet', 'SoccerJuggling',
-                    'Surfing', 'TennisSwing', 'TrampolineJumping', 'VolleyballSpiking', 'WalkingWithDog']
+
+def get_box(box, counts):
+    box = box.astype(np.float32) - 1
+    box[2] += box[0]  #convert width to xmax
+    box[3] += box[1]  #converst height to ymax
+    for bi in range(4):
+        scale = 320 if bi % 2 == 0 else 240
+        box[bi] /= scale
+        assert 0<=box[bi]<=1.01, box
+        # if add_one ==0:
+        box[bi] = min(1.0, max(0, box[bi]))
+        if counts is None:
+            box[bi] = box[bi]*682 if bi % 2 == 0 else box[bi]*512
+
+    return box, counts
+
+def get_frame_level_annos_ucf24(annotations, numf, num_classes, counts=None):
+    frame_level_annos = [ {'labeled':True,'ego_label':0,'boxes':[],'labels':[]} for _ in range(numf)]
+    add_one = 1
+    # if num_classes == 24:
+    # add_one = 0
+    for tubeid, tube in enumerate(annotations):
+    # print('numf00', numf, tube['sf'], tube['ef'])
+        for frame_index, frame_num in enumerate(np.arange(tube['sf'], tube['ef'], 1)): # start of the tube to end frame of the tube
+            label = tube['label']
+            # assert action_id == label, 'Tube label and video label should be same'
+            box, counts = get_box(tube['boxes'][frame_index, :].copy(), counts)  # get the box as an array
+            frame_level_annos[frame_num]['boxes'].append(box)
+            box_labels = np.zeros(num_classes)
+            # if add_one == 1:
+            box_labels[0] = 1 
+            box_labels[label+add_one] = 1
+            frame_level_annos[frame_num]['labels'].append(box_labels)
+            frame_level_annos[frame_num]['ego_label'] = label+1
+            # frame_level_annos[frame_index]['ego_label'][] = 1
+            if counts is not None:
+                counts[0,0] += 1
+                counts[label,1] += 1
+        
+    return frame_level_annos, counts
 
 
-def readsplitfile(splitfile):
-    with open(splitfile, 'r') as f:
-        temptrainvideos = f.readlines()
-    trainvideos = []
-    for vid in temptrainvideos:
-        vid = vid.rstrip('\n')
-        trainvideos.append(vid)
-    return trainvideos
+def get_filtered_tubes_ucf24(annotations):
+    filtered_tubes = []
+    for tubeid, tube in enumerate(annotations):
+        frames = []
+        boxes = []
+        label = tube['label']
+        count = 0
+        for frame_index, frame_num in enumerate(np.arange(tube['sf'], tube['ef'], 1)):
+            frames.append(frame_num+1)
+            box, _ = get_box(tube['boxes'][frame_index, :].copy(), None)
+            boxes.append(box)
+            count += 1
+        assert count == tube['boxes'].shape[0], 'numb: {} count ={}'.format(tube['boxes'].shape[0], count)
+        temp_tube = make_gt_tube(frames, boxes, label)
+        filtered_tubes.append(temp_tube)
+    return filtered_tubes
+
 
 def resize(image, size):
     image = F.interpolate(image.unsqueeze(0), size=size, mode="nearest").squeeze(0)
@@ -213,14 +258,14 @@ class VideoDataset(tutils.data.Dataset):
     def _make_lists_ucf24(self):
 
         self.anno_file  = os.path.join(self.root, 'splitfiles/pyannot.pkl')
-        splitfile = os.path.join(self.root + 'splitfiles/trainlist01.txt')
-        self.trainvideos = readsplitfile(splitfile)
+        
 
         with open(self.anno_file,'rb') as fff:
-            database = pickle.load(fff)
+            final_annots = pickle.load(fff)
         
-        # database = final_annots['db']
-        
+        database = final_annots['db']
+        self.trainvideos = final_annots['trainvideos']
+        ucf_classes = final_annots['classes']
         self.label_types =  ['action_ness', 'action'] #
         
         self.num_classes_list = [1, 24]
@@ -249,7 +294,7 @@ class VideoDataset(tutils.data.Dataset):
                 continue
             elif 'test' in self.SUBSETS and videoname in self.trainvideos:
                 continue
-            
+            # print(database[videoname].keys())
             action_id = database[videoname]['label']
             annotations = database[videoname]['annotations']
             
@@ -259,31 +304,7 @@ class VideoDataset(tutils.data.Dataset):
             
             # frames = database[videoname]['frames']
             
-            frame_level_annos = [ {'labeled':True,'ego_label':0,'boxes':[],'labels':[]} for _ in range(numf)]
-
-            for tubeid, tube in enumerate(annotations):
-            # print('numf00', numf, tube['sf'], tube['ef'])
-                for frame_index, frame_num in enumerate(np.arange(tube['sf'], tube['ef'], 1)): # start of the tube to end frame of the tube
-                    label = tube['label']
-                    assert action_id == label, 'Tube label and video label should be same'
-                    box = tube['boxes'][frame_index, :].copy()  # get the box as an array
-                    box = box.astype(np.float32) - 1
-                    box[2] += box[0]  #convert width to xmax
-                    box[3] += box[1]  #converst height to ymax
-                    for bi in range(4):
-                        scale = 320 if bi % 2 == 0 else 240
-                        box[bi] /= scale
-                        assert 0<=box[bi]<=1.01, box
-                        box[bi] = min(1.0, max(0, box[bi]))
-                    frame_level_annos[frame_index]['boxes'].append(box)
-                    box_labels = np.zeros(self.num_classes)
-                    box_labels[0] = 1 
-                    box_labels[label+1] = 1
-                    frame_level_annos[frame_index]['labels'].append(box_labels)
-                    frame_level_annos[frame_index]['ego_label'] = label+1
-                    # frame_level_annos[frame_index]['ego_label'][] = 1
-                    counts[0,0] += 1
-                    counts[label,1] += 1
+            frame_level_annos, counts = get_frame_level_annos_ucf24(annotations, numf, self.num_classes, counts)
 
             frames_with_boxes = 0
             for frame_index in range(numf): #frame_level_annos:
@@ -295,15 +316,14 @@ class VideoDataset(tutils.data.Dataset):
             total_labeled_frame += frames_with_boxes
             total_num_frames += numf
 
-            logger.info('Frames with Boxes are {:d} out of {:d} in {:s}'.format(frames_with_boxes, numf, videoname))
+            # logger.info('Frames with Boxes are {:d} out of {:d} in {:s}'.format(frames_with_boxes, numf, videoname))
             frame_level_list.append(frame_level_annos)  
-
             ## make ids
             start_frames = [ f for f in range(numf-self.MIN_SEQ_STEP*self.SEQ_LEN, -1,  -self.skip_step)]
             
             if self.full_test and 0 not in start_frames:
                 start_frames.append(0)
-            logger.info('number of start frames: '+ str(len(start_frames)))
+            # logger.info('number of start frames: '+ str(len(start_frames)))
             for frame_num in start_frames:
                 step_list = [s for s in range(self.MIN_SEQ_STEP, self.MAX_SEQ_STEP+1) if numf-s*self.SEQ_LEN>=frame_num]
                 shuffle(step_list)

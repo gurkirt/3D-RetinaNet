@@ -1,6 +1,16 @@
 import numpy as np
 import pdb
+from modules import utils
+logger = utils.get_logger(__name__)
 
+over_s = 0.0
+under_s = 0.0
+over_e = 0.0
+under_e = 0.0
+oa_s = 0.0
+ua_s = 0.0
+oa_e = 0.0
+ua_e = 0.0
 
 def make_det_tube(scores, boxes, frames, label_id):
     tube = {}
@@ -17,7 +27,12 @@ def get_nonnp_det_tube(scores, boxes, start, end, label_id):
     tube['label_id'] =label_id
     tube['scores'] = scores.tolist()
     tube['boxes'] = boxes.tolist()
-    tube['score'] = float(np.mean(scores))
+    
+    if isinstance(scores, float):
+        tube['score'] = scores
+    else:
+        tube['score'] = float(np.mean(scores))
+
     tube['frames'] = [i for i in range(start, end)]
     assert len(tube['frames']) == len(tube['boxes']), 'must be equal'
 
@@ -36,7 +51,7 @@ def make_gt_tube(frames, boxes, label_id):
     tube['label_id'] = label_id
     return tube
 
-def trim_tubes(start_id, numc, paths, topk=3, alpha=3, min_len=3):
+def trim_tubes(start_id, numc, paths, topk=5, alpha=3, min_len=3):
     """ Trim the paths into tubes using DP"""
     tubes = []
     for path in paths:
@@ -44,23 +59,84 @@ def trim_tubes(start_id, numc, paths, topk=3, alpha=3, min_len=3):
         path_start_frame = path['foundAt'][0]
         if allScores.shape[0]<min_len:
             continue
-        # topk_classes = get_topk_classes(allScores, topk)
-        score_mat = np.transpose(allScores.copy())
-        for _ in range(topk):
-            (segments, _) = dpEMmax(score_mat, alpha)
-            # print(segments)
-            labels, starts, ends = getLabels(segments)
-            # print(labels, starts, ends)
-            for i in range(len(labels)):
-                if ends[i] - starts[i] >= min_len:
+        
+        # print(allScores.shape)
+        if False: ## standarded method Multi class-DP
+            score_mat = np.transpose(allScores.copy())
+            for _ in range(topk):
+                (segments, _) = dpEMmax(score_mat, alpha)
+                # print(segments)
+                labels, starts, ends = getLabels(segments)
+                # print(labels, starts, ends)
+                for i in range(len(labels)):
+                    if ends[i] - starts[i] >= min_len:
+                        scores = score_mat[labels[i], starts[i]:ends[i]+1]
+                        boxes = path['boxes'][starts[i]:ends[i]+1, :]
+                        start = starts[i] + path_start_frame
+                        end = ends[i] + path_start_frame + 1
+                        tube = get_nonnp_det_tube(scores, boxes, int(start), int(end), int(labels[i]))
+                        tubes.append(tube)
+                        score_mat[labels[i], starts[i]:ends[i]+1] = 0.0
+
+        elif False: ## bit fancy only select top segments
+            score_mat = np.transpose(allScores.copy())
+            for _ in range(topk):
+                (segments, _) = dpEMmax(score_mat, alpha)
+                # print(segments)
+                labels, starts, ends = getLabels(segments)
+                # print(labels, starts, ends)
+                num_seg = labels.shape[0]
+                seg_scores = np.zeros(num_seg)
+                for i in range(min(2,len(labels))):
+                    if ends[i] - starts[i] >= min_len:
+                        scores = score_mat[labels[i], starts[i]:ends[i]+1]
+                        seg_scores[i] = np.mean(scores)
+                    else:
+                        score_mat[labels[i], starts[i]:ends[i]+1] = 0.0
+                        seg_scores[i] = 0.0
+
+                inds = np.argsort(-seg_scores)
+                for ii in range(min(2, num_seg)):
+                    i = inds[ii]
+                    # if ends[i] - starts[i] >= min_len:
                     scores = score_mat[labels[i], starts[i]:ends[i]+1]
                     boxes = path['boxes'][starts[i]:ends[i]+1, :]
                     start = starts[i] + path_start_frame
+                    if boxes.shape[0] != -starts[i] + ends[i] + 1:
+                        print('We have exceptions', boxes.shape[0], -starts[i] + ends[i]+1)
                     end = ends[i] + path_start_frame + 1
                     tube = get_nonnp_det_tube(scores, boxes, int(start), int(end), int(labels[i]))
                     tubes.append(tube)
                     score_mat[labels[i], starts[i]:ends[i]+1] = 0.0
-            
+        
+        elif True: # no trimming
+            topk_classes, topk_scores = get_topk_classes(allScores, topk)
+            for i in range(topk):
+                label, start, end = topk_classes[i], path_start_frame, allScores.shape[0] + path_start_frame 
+                if end-start+1 > min_len:
+                    # tube = get_nonnp_det_tube(allScores[:,label], path['boxes'], int(start), int(end), int(label))
+                    tube = get_nonnp_det_tube(topk_scores[i], path['boxes'], int(start), int(end), int(label))
+                    tubes.append(tube)
+        else: #indvidual class-wise dp
+            topk_classes, topk_scores = get_topk_classes(allScores, topk)
+            for idx in range(topk_classes.shape[0]):
+                current_label = int(topk_classes[idx])
+                score_mat =  np.hstack((allScores[:,current_label, np.newaxis], 1 - allScores[:,current_label, np.newaxis]))
+                # print(score_mat.shape, allScores[:,current_label].shape)
+                score_mat = np.transpose(score_mat.copy())
+                (segments, _) = dpEMmax(score_mat, alpha)
+                # print(segments)
+                labels, starts, ends = getLabels(segments)
+                # print(labels, starts, ends)
+                for i in range(len(labels)):
+                    if ends[i] - starts[i] >= min_len and labels[i]==0:
+                        scores = score_mat[labels[i], starts[i]:ends[i]+1]
+                        boxes = path['boxes'][starts[i]:ends[i]+1, :]
+                        start = starts[i] + path_start_frame
+                        end = ends[i] + path_start_frame + 1
+                        tube = get_nonnp_det_tube(scores, boxes, int(start), int(end), int(current_label))
+                        tubes.append(tube)
+                        # score_mat[labels[i], starts[i]:ends[i]+1] = 0.0
     return tubes
 
 def getLabels(segments, cls=1):
@@ -85,9 +161,18 @@ def getLabels(segments, cls=1):
     return labels[:i+1],starts[:i+1],ends[:i+1]
 
 def get_topk_classes(allScores, topk):
-    scores = np.sum(allScores, axis=0)
-    sorted_classes =np.argsort(-scores)
-    return sorted_classes[:topk]
+    scores = np.zeros(allScores.shape[1])
+    # print(scores.shape)
+    topn = max(1, allScores.shape[1]//4)
+    for k in range(scores.shape[0]):
+        temp_scores = allScores[:,k]
+        sorted_score = np.sort(-temp_scores)
+        # print(sorted_score[:topn])
+        scores[k] = np.mean(-sorted_score[:topn])
+    sorted_classes = np.argsort(-scores)
+    sorted_scores = scores[sorted_classes]
+    # print(sorted_scores)
+    return sorted_classes[:topk], sorted_scores[:topk]
 
 
 def dpEMmax(M, alpha=3):
@@ -154,14 +239,15 @@ def bbox_overlaps(box_a, box_b):
 def get_tube_3Diou(tube_a, tube_b , spatial_only=False):
     """Compute the spatio-temporal IoU between two tubes"""
 
+    global over_s, over_e, under_s, under_e, oa_s, oa_e, ua_s, ua_e
+
     tmin = max(tube_a['frames'][0], tube_b['frames'][0])
     tmax = min(tube_a['frames'][-1], tube_b['frames'][-1])
     
     if tmax < tmin: return 0.0
 
     temporal_inter = tmax - tmin + 1
-    temporal_union = max(tube_a['frames'][-1], tube_b['frames']
-                         [-1]) - min(tube_a['frames'][0], tube_b['frames'][0]) + 1
+    temporal_union = max(tube_a['frames'][-1], tube_b['frames'][-1]) - min(tube_a['frames'][0], tube_b['frames'][0]) + 1
 
     # try:
     tube_a_boxes = tube_a['boxes'][int(np.where(tube_a['frames'] == tmin)[0][0]): int(
@@ -171,12 +257,32 @@ def get_tube_3Diou(tube_a, tube_b , spatial_only=False):
     # except:
     #     pdb.set_trace()     print('something', tube_a_boxes, tube_b_boxes, iou)
 
-    iou = iou3d(tube_a_boxes, tube_b_boxes)
+    siou = iou3d(tube_a_boxes, tube_b_boxes)
+
+    if tube_a['frames'][-1]>= tube_b['frames'][-1]:
+        over_e += 1
+        oa_e += tube_a['frames'][-1] - tube_b['frames'][-1] 
+    else:
+        under_e += 1
+        ua_e += tube_a['frames'][-1] - tube_b['frames'][-1]
+    
+    if tube_a['frames'][0]<= tube_b['frames'][0]:
+        over_s += 1
+        oa_s += tube_a['frames'][0] - tube_b['frames'][0] 
+    else:
+        under_s += 1
+        ua_s += tube_a['frames'][0] - tube_b['frames'][0]
+    
+    tiou = temporal_inter / temporal_union
+    # if not (tube_a['frames'][-1]>= tube_b['frames'][-1] and tube_a['frames'][0]<= tube_b['frames'][0]):
+    #     tiou = 1.0
+    
+    logger.info('over_s {} over_e {} under_s {} under_e {} oa_s {} oa_e {} ua_s {} ua_e {}'.format(over_s, over_e, under_s, under_e, oa_s, oa_e, ua_s, ua_e))
 
     if spatial_only:
-        return iou
+        return siou
     else:
-        return  iou * temporal_inter / temporal_union
+        return  siou * tiou
 
 
 def iou3d(tube_a, tube_b):

@@ -12,6 +12,7 @@ import pickle
 import numpy as np
 import scipy.io as io  # to save detection as mat files
 from data.datasets import is_part_of_subsets, get_filtered_tubes, get_filtered_frames, filter_labels
+from data.datasets import get_frame_level_annos_ucf24, get_filtered_tubes_ucf24
 from modules.tube_helper import get_tube_3Diou, make_det_tube
 from modules import utils
 logger = utils.get_logger(__name__)
@@ -171,14 +172,6 @@ def evaluate_detections(gt_boxes, det_boxes, classes=[], iou_thresh=0.5):
     return mAP, ap_all, ap_strs
 
 
-# def filter_labels(labels, n):
-#     new_labels = []
-#     for k in range(labels.shape[1]):
-#         if labels[n, k] > -1:
-#             new_labels.append(int(labels[n, k]))
-#     return new_labels
-
-
 def evaluate(gts, dets, all_classes, iou_thresh=0.5):
     # np.mean(ap_all), ap_all, ap_strs
     aps, aps_all, ap_strs = [], [], []
@@ -234,17 +227,39 @@ def evaluate_ego(gts, dets, classes):
     return mAP, ap_all, ap_strs
 
 
-def get_gt_tubes(final_annots, subset, label_type):
+def get_gt_tubes_ucf(final_annots, subset, label_type):
     """Get video list form ground truth videos used in subset 
     and their ground truth tubes """
 
     video_list = []
     tubes = {}
     for videoname in final_annots['db']:
-        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], [subset]):
+        if videoname not in final_annots['trainvideos']:
             video_list.append(videoname)
             tubes[videoname] = get_filtered_tubes(
                 label_type+'_tubes', final_annots, videoname)
+
+    return video_list, tubes
+
+
+def get_gt_tubes(final_annots, subset, label_type, dataset):
+    """Get video list form ground truth videos used in subset 
+    and their ground truth tubes """
+
+    video_list = []
+    tubes = {}
+    for videoname in final_annots['db']:
+        if dataset == 'aarav':
+            cond = is_part_of_subsets(final_annots['db'][videoname]['split_ids'], [subset])
+        else:
+            cond = videoname not in final_annots['trainvideos']
+        if cond:
+            video_list.append(videoname)
+            if dataset == 'aarav':
+                tubes[videoname] = get_filtered_tubes(
+                    label_type+'_tubes', final_annots, videoname)
+            else:
+                tubes[videoname] = get_filtered_tubes_ucf24(final_annots['db'][videoname]['annotations'])
 
     return video_list, tubes
 
@@ -319,56 +334,105 @@ def compute_class_ap(class_dets, class_gts, match_func, iou_thresh):
     return class_ap, num_postives, count
 
 
-def evaluate_tubes(anno_file, det_file, classes, label_type, subset='val_3', iou_thresh=0.2):
+def evaluate_tubes(anno_file, det_file,  subset='val_3', dataset='aarav', iou_thresh=0.2):
 
-    with open(anno_file, 'r') as fff:
-        final_annots = json.load(fff)
+    logger.info('Evaluating tubes for datasets '+ dataset)
+
+    if dataset == 'aarav':
+        with open(anno_file, 'r') as fff:
+            final_annots = json.load(fff)
+    else:
+        with open(anno_file, 'rb') as fff:
+            final_annots = pickle.load(fff)
 
     with open(det_file, 'r') as fff:
         detections = json.load(fff)
 
-    ap_all = []
-    ap_strs = []
-    sap = 0.0
-    video_list, gt_tubes = get_gt_tubes(final_annots, subset, label_type)
-    det_tubes = {}
+    if dataset == 'aarav':
+        label_types = final_annots['label_types']
+    else:
+        label_types = ['action']
     
-    for videoname in video_list:
-        det_tubes[videoname] = detections[label_type][videoname]
+    results = {} 
+    for _, label_type in enumerate(label_types):
 
-    for cl_id, class_name in enumerate(classes):
+        if dataset != 'aarav':
+            classes = final_annots['classes']
+        else:
+            classes = final_annots[label_type+'_labels']
 
-        class_dets = get_det_class_tubes(det_tubes, cl_id)
-        class_gts = get_gt_class_tubes(gt_tubes, cl_id)
+        logger.info('Evaluating {} {}'.format(label_type, len(classes)))
+        ap_all = []
+        ap_strs = []
+        sap = 0.0
+        video_list, gt_tubes = get_gt_tubes(final_annots, subset, label_type, dataset)
+        det_tubes = {}
+        
+        for videoname in video_list:
+            det_tubes[videoname] = detections[label_type][videoname]
 
-        class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, get_tube_3Diou, iou_thresh)
+        for cl_id, class_name in enumerate(classes):
+            
+            class_dets = get_det_class_tubes(det_tubes, cl_id)
+            class_gts = get_gt_class_tubes(gt_tubes, cl_id)
 
-        sap += class_ap
-        ap_all.append(class_ap)
-        ap_str = class_name + ' : ' + str(num_postives) + \
-            ' : ' + str(count) + ' : ' + str(class_ap)
-        ap_strs.append(ap_str)
-    mAP = sap/len(classes)
-    ap_strs.append('\nMean AP:: {:0.2f}'.format(mAP))
+            class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, get_tube_3Diou, iou_thresh)
 
-    return mAP, ap_all, ap_strs
+            sap += class_ap
+            ap_all.append(class_ap)
+            ap_str = class_name + ' : ' + str(num_postives) + \
+                ' : ' + str(count) + ' : ' + str(class_ap)
+            ap_strs.append(ap_str)
+        mAP = sap/len(classes)
+        ap_strs.append('\nMean AP:: {:0.2f}'.format(mAP))
+        results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs}
+        logger.info('MAP:: {}'.format(mAP))
+    
+    return results
 
 
-def get_gt_frames(final_annots, subsets, label_type):
+def get_gt_frames_ucf24(final_annots, label_type):
     """Get video list form ground truth videos used in subset 
     and their ground truth frames """
 
-    video_list = []
     frames = {}
-    if not isinstance(subsets, list):
-        subsets = [subsets]
+    trainvideos = final_annots['trainvideos']
+    # labels = final_annots['classes']
+    labels = ['action_ness'] + final_annots['classes']
+    num_classes = len(labels)
+    database = final_annots['db']
     for videoname in final_annots['db']:
-        if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
-            video_list.append(videoname)
-            frames = get_filtered_frames(
-                label_type, final_annots, videoname, frames)
+        if videoname not in trainvideos:
+            numf = database[videoname]['numf']
+            fframe_level_annos, _ = get_frame_level_annos_ucf24(database[videoname]['annotations'], numf, num_classes)
+            for frame_id , frame in enumerate(fframe_level_annos):
+                frame_name = '{:08d}'.format(int(frame_id+1))
+                all_boxes = []
+                label = 0 if label_type == 'action_ness' else database[videoname]['label']
+                for k in range(len(frame['boxes'])):
+                    all_boxes.append([frame['boxes'][k], [label]])
+                frames[videoname+frame_name] = all_boxes
 
-    return video_list, frames
+    return frames
+
+
+def get_gt_frames(final_annots, subsets, label_type, dataset):
+    """Get video list form ground truth videos used in subset 
+    and their ground truth frames """
+    if dataset == 'aarav':
+        # video_list = []
+        frames = {}
+        if not isinstance(subsets, list):
+            subsets = [subsets]
+        for videoname in final_annots['db']:
+            if is_part_of_subsets(final_annots['db'][videoname]['split_ids'], subsets):
+                # video_list.append(videoname)
+                frames = get_filtered_frames(
+                    label_type, final_annots, videoname, frames)
+    else:
+        return get_gt_frames_ucf24(final_annots, label_type)
+    
+    return frames
 
 
 def get_det_class_frames(dets, cl_id, frame_ids):
@@ -401,6 +465,7 @@ def eval_framewise_ego_actions_aarav(final_annots, detections, subsets):
 
     if not isinstance(subsets, list):
         subsets = [subsets]
+    
     label_key = 'av_action'
     filtered_gts = []
     filtered_preds = []
@@ -425,16 +490,47 @@ def eval_framewise_ego_actions_aarav(final_annots, detections, subsets):
     return evaluate_ego(gts, preds, labels)
     
 
-def eval_framewise_ego_actions(final_annots, detections, subsets, dataset='arrav'):
+def eval_framewise_ego_actions_ucf24(final_annots, detections, subsets):
+    """Get video list form ground truth videos used in subset 
+    and their ground truth frames """
+
+    filtered_gts = []
+    filtered_preds = []
+    trainvideos = final_annots['trainvideos']
+    labels = ['Non_action'] + final_annots['classes']
+    num_classes = len(labels)
+    database = final_annots['db']
+    for videoname in final_annots['db']:
+        if videoname not in trainvideos:
+            numf = database[videoname]['numf']
+            fframe_level_annos, _ = get_frame_level_annos_ucf24(database[videoname]['annotations'], numf, num_classes)
+            for frame_id , frame in enumerate(fframe_level_annos):
+                frame_name = '{:08d}'.format(int(frame_id+1))
+                gts = [frame['ego_label']]
+                filtered_gts.append(gts)
+                filtered_preds.append(detections[videoname+frame_name])
+
+    gts = np.asarray(filtered_gts)
+    preds = np.asarray(filtered_preds)
+    return evaluate_ego(gts, preds, labels)
+
+
+def eval_framewise_ego_actions(final_annots, detections, subsets, dataset='aarav'):
     if dataset == 'aarav':
         return eval_framewise_ego_actions_aarav(final_annots, detections, subsets)
     else:
-        raise Exception('Not implemented yet eval_framewise_ego_actions')
+        return eval_framewise_ego_actions_ucf24(final_annots, detections, subsets)
 
 
 def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'):
-    with open(anno_file, 'r') as fff:
-        final_annots = json.load(fff)
+    
+    logger.info('Evaluating frames for datasets '+ dataset)
+    if dataset == 'aarav':
+        with open(anno_file, 'r') as fff:
+            final_annots = json.load(fff)
+    else:
+        with open(anno_file, 'rb') as fff:
+            final_annots = pickle.load(fff)
 
     with open(det_file, 'rb') as fff:
         detections = pickle.load(fff)
@@ -454,14 +550,19 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'
             ap_all = []
             ap_strs = []
             sap = 0.0
-            _, gt_frames = get_gt_frames(final_annots, subset, label_type)
+            gt_frames = get_gt_frames(final_annots, subset, label_type, dataset)
             
             if label_type == 'agent_ness':
                 classes = ['agent_ness']
+            elif label_type == 'action_ness':
+                classes = ['action_ness']
+            elif dataset != 'aarav':
+                classes = final_annots['classes']
             else:
                 classes = final_annots[label_type+'_labels']
             
             for cl_id, class_name in enumerate(classes):
+                # print(cl_id, class_name, label_type)
                 ## gather gt of class "class_name" from frames which are not marked igonre
                 class_gts = get_gt_class_frames(gt_frames, cl_id)
                 frame_ids = [f for f in class_gts.keys()]

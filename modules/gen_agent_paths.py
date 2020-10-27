@@ -1,8 +1,7 @@
 import numpy as np
 import pdb
 
-def update_agent_paths(live_paths, dead_paths, dets, num_agents, time_stamp, iouth=0.1,
-        costtype='scoreiou', jumpgap=5): ## trim_threshold=100, keep_num=60,
+def update_agent_paths(live_paths, dead_paths, dets, num_classes_to_use, time_stamp, iouth=0.1, costtype='scoreiou', jumpgap=5): ## trim_threshold=100, keep_num=60,
     num_box = dets['boxes'].shape[0]
     if len(live_paths) == 0:
         # Start a path for each box in first frame
@@ -24,8 +23,8 @@ def update_agent_paths(live_paths, dead_paths, dets, num_agents, time_stamp, iou
             # Check whether path has gone stale
             if time_stamp - live_paths[lp]['foundAt'][-1] <= jumpgap:
                 # IoU scores for path lp
-                as1 = live_paths[lp]['allScores'][-1,1:num_agents+1]
-                as2 = dets['allScores'][-1,1:num_agents+1]
+                as1 = live_paths[lp]['allScores'][-1,:num_classes_to_use]
+                as2 = dets['allScores'][:,:num_classes_to_use]
                 box_to_lp_score = score_of_edge(live_paths[lp], dets, iouth, costtype, avoid_dets, as1, as2)
                 
                 if np.sum(box_to_lp_score) > 0.1: 
@@ -159,10 +158,14 @@ def score_of_edge(v1, v2, iouth, costtype, avoid_dets, as1, as2):
             scores2 = v2['scores'][i]
             if costtype == 'score':
                 score[i] = scores2
-            if costtype == 'scoreiou':
+            elif costtype == 'scoreiou':
                 score[i] = (scores2 + ious[i])/2
-            if costtype == 'scoreioul2':
+            elif costtype == 'scoreioul2':
                 score[i] = (scores2 + ious[i])/2
+                invl2_diff = 1.0/np.sqrt(np.sum((as1-as2[i,:])**2))
+                score[i] += invl2_diff
+            elif costtype == 'ioul2':
+                score[i] =  ious[i]
                 invl2_diff = 1.0/np.sqrt(np.sum((as1-as2[i,:])**2))
                 score[i] += invl2_diff
     return score
@@ -211,7 +214,7 @@ def are_there_gaps(array):
     return gaps
 
 
-def fill_gaps(paths, min_len_with_gaps=8, minscore=0.1):
+def fill_gaps(paths, min_len_with_gaps=8, minscore=0.3):
     lp_count = len(paths)
     new_paths = []
     filling_gaps = 0
@@ -264,7 +267,6 @@ def fill_gaps(paths, min_len_with_gaps=8, minscore=0.1):
             new_paths.append(new_path)
             
             # paths[lp]['labels'] = paths[lp]['labels'][-keep_num:]
-    
-    print('Number of videos with gaps are ', filling_gaps)
+    # print('Number of tube paths with gaps are ', filling_gaps)
 
     return paths

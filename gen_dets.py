@@ -192,8 +192,8 @@ def gather_framelevel_detection(args, val_dataset):
         detections['av_actions'] = {}
     else:
         detections['frame_actions'] = {}
-
-    for videoname in val_dataset.video_list:       
+    numv = len(val_dataset.video_list)
+    for vid, videoname in enumerate(val_dataset.video_list):       
         vid_dir = os.path.join(args.det_save_dir, videoname)
         frames_list = os.listdir(vid_dir)
         for frame_name in frames_list:
@@ -209,18 +209,18 @@ def gather_framelevel_detection(args, val_dataset):
             else:
                 detections['frame_actions'][videoname+frame_name] = dets['ego']
             frame_dets = dets['main']
+            
             if args.JOINT_4M_MARGINALS:
                 frame_dets = make_joint_probs_from_marginals(frame_dets, val_dataset.childs, args)
             
             start_id = 4
-            
             for l, ltype in enumerate(args.label_types):
                 numc = args.num_classes_list[l]
                 ldets = get_ltype_dets(frame_dets, start_id, numc, ltype, args)
                 detections[ltype][videoname+frame_name] = ldets
                 start_id += numc
 
-        logger.info('Done for ' + videoname)
+        logger.info('[{}/{}] Done for {}'.format(vid, numv, videoname))
         # break
     logger.info('Dumping detection in ' + args.det_file_name)
     with open(args.det_file_name, 'wb') as f:
@@ -280,7 +280,7 @@ def eval_framewise_dets(args, val_dataset):
         for subset in args.SUBSETS:
             if len(subset)<2:
                 continue
-            sresults = evaluate_frames(val_dataset.anno_file, args.det_file_name, subset, iou_thresh=0.5)
+            sresults = evaluate_frames(val_dataset.anno_file, args.det_file_name, subset, iou_thresh=0.5, dataset=args.DATASET)
             for _, label_type in enumerate(args.label_types):
                 name = subset + ' & ' + label_type
                 rstr = '\n\nResults for ' + name + '\n'
