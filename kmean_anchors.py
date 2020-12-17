@@ -66,7 +66,7 @@ def get_area(centers):
         return centers[:,2]*centers[:,3]
 
 def kmean_whs(base_dir):
-    for dataset in ['aarav']:
+    for dataset in ['road']:
         if dataset == 'coco':
             train_sets = ['train2017']
             val_sets = ['val2017']

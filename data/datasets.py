@@ -222,7 +222,7 @@ def is_part_of_subsets(split_ids, SUBSETS):
 
 class VideoDataset(tutils.data.Dataset):
     """
-    AARAV Detection dataset class for pytorch dataloader
+    ROAD Detection dataset class for pytorch dataloader
     """
 
     def __init__(self, args, train=True, input_type='rgb', transform=None, 
@@ -248,8 +248,8 @@ class VideoDataset(tutils.data.Dataset):
         # self.image_sets = image_sets
         self.transform = transform
         self.ids = list()
-        if self.DATASET == 'aarav':
-            self._make_lists_arrav()  
+        if self.DATASET == 'road':
+            self._make_lists_road()  
         elif self.DATASET == 'ucf24':
             self._make_lists_ucf24() 
         self.num_label_types = len(self.label_types)
@@ -351,7 +351,7 @@ class VideoDataset(tutils.data.Dataset):
         self.print_str = ptrstr
         
         
-    def _make_lists_arrav(self):
+    def _make_lists_road(self):
 
         self.anno_file  = self.root + 'annots_12fps_full_v1.0.json'
 

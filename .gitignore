@@ -10,7 +10,7 @@ logs/*
 .vscode*
 # weights
 weights/
-
+*.code-workspace
 #DS_Store
 .DS_Store
 # pycharm

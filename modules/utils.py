@@ -2,12 +2,12 @@ import os, sys
 import shutil
 import socket
 import getpass
+import copy
 import numpy as np
 from modules.box_utils import nms
 import datetime
 import logging 
 import torch
-
 
 # from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/modeling/rpn/anchor_generator.py
 class BufferList(torch.nn.Module):
@@ -40,6 +40,7 @@ def setup_logger(args):
     args.log_dir = 'logs/'+args.exp_name+'/'
     if not os.path.isdir(args.log_dir):
         os.makedirs(args.log_dir)
+        
     added_log_file = '{}{}-{date:%m-%d-%Hx}.log'.format(args.log_dir, args.MODE, date=datetime.datetime.now())
 
    
@@ -51,7 +52,7 @@ def setup_logger(args):
         level=logging.INFO, format=_FORMAT, stream=sys.stdout
     )
     logging.getLogger().addHandler(logging.FileHandler(log_file_name, mode='a'))
-    logging.getLogger().addHandler(logging.FileHandler(added_log_file, mode='a'))
+    # logging.getLogger().addHandler(logging.FileHandler(added_log_file, mode='a'))
 
 
 def get_logger(name):
@@ -82,7 +83,7 @@ def set_args(args):
     args.TRAIN_SUBSETS = [val for val in args.TRAIN_SUBSETS.split(',') if len(val)>1]
     args.VAL_SUBSETS = [val for val in args.VAL_SUBSETS.split(',') if len(val)>1]
     args.TEST_SUBSETS = [val for val in args.TEST_SUBSETS.split(',') if len(val)>1]
-    
+    args.TUBES_EVAL_THRESHS = [ float(val) for val in args.TUBES_EVAL_THRESHS.split(',') if len(val)>0.0001]
     args.model_subtype = args.MODEL_TYPE.split('-')[0]
     ## check if subsets are okay
     possible_subets = ['test', 'train','val']
@@ -90,7 +91,7 @@ def set_args(args):
         possible_subets.append('train_'+str(idx))        
         possible_subets.append('val_'+str(idx))        
 
-    if len(args.VAL_SUBSETS) < 1 and args.DATASET == 'aarav':
+    if len(args.VAL_SUBSETS) < 1 and args.DATASET == 'road':
         args.VAL_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
     if len(args.TEST_SUBSETS) < 1:
         # args.TEST_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
@@ -210,7 +211,7 @@ def filter_detections_for_tubing(args, scores, decoded_boxes_batch, confidences)
     numc = confidences.shape[-1]
     confidences = confidences[c_mask,:].clone().view(-1, numc)
 
-    max_k = min(args.TOPK*6, scores.shape[0])
+    max_k = min(args.TOPK*60, scores.shape[0])
     ids, counts = nms(boxes, scores, args.NMS_THRESH, max_k)  # idsn - ids after nms
     scores = scores[ids[:min(args.TOPK,counts)]].cpu().numpy()
     boxes = boxes[ids[:min(args.TOPK,counts)],:].cpu().numpy()
@@ -236,8 +237,9 @@ def filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidences
     # boxes_np = boxes.cpu().numpy()
     # confidences_np = confidences.cpu().numpy()
     # save_data = np.hstack((boxes_np[sorted_ind,:], confidences_np[sorted_ind, :]))
-    # args.GEN_TOPK, args.GEN_NMS, 
-    max_k = min(args.GEN_TOPK*6, scores.shape[0])
+    # args.GEN_TOPK, args.GEN_NMS
+     
+    max_k = min(args.GEN_TOPK*500, scores.shape[0])
     ids, counts = nms(boxes, scores, args.GEN_NMS, max_k)  # idsn - ids after nms
     scores = scores[ids[:min(args.GEN_TOPK,counts)]].cpu().numpy()
     boxes = boxes[ids[:min(args.GEN_TOPK,counts)],:].cpu().numpy()
@@ -246,6 +248,33 @@ def filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidences
     save_data = np.hstack((cls_dets, confidences[:,1:])).astype(np.float32)
     #print(save_data.shape)
     return cls_dets, save_data
+
+def make_joint_probs_from_marginals(frame_dets, childs, num_classes_list, start_id=4):
+    
+    # pdb.set_trace()
+
+    add_list = copy.deepcopy(num_classes_list[:3])
+    add_list[0] = start_id+1
+    add_list[1] = add_list[0]+add_list[1]
+    add_list[2] = add_list[1]+add_list[2]
+    # for ind in range(frame_dets.shape[0]):
+    for nlt, ltype in enumerate(['duplex','triplet']):
+        lchilds = childs[ltype+'_childs']
+        lstart = start_id
+        for num in num_classes_list[:4+nlt]:
+            lstart += num
+        
+        for c in range(num_classes_list[4+nlt]):
+            tmp_scores = []
+            for chid, ch in enumerate(lchilds[c]):
+                if len(tmp_scores)<1:
+                    tmp_scores = copy.deepcopy(frame_dets[:,add_list[chid]+ch])
+                else:
+                    tmp_scores *= frame_dets[:,add_list[chid]+ch]
+            frame_dets[:,lstart+c] = tmp_scores
+
+    return frame_dets
+
 
 
 def eval_strings():

@@ -1,7 +1,7 @@
 import numpy as np
 import pdb
 
-def update_agent_paths(live_paths, dead_paths, dets, num_classes_to_use, time_stamp, iouth=0.1, costtype='scoreiou', jumpgap=5): ## trim_threshold=100, keep_num=60,
+def update_agent_paths(live_paths, dead_paths, dets, num_classes_to_use, time_stamp, iouth=0.1, costtype='scoreiou', jumpgap=5, min_len=5): ## trim_threshold=100, keep_num=60,
     num_box = dets['boxes'].shape[0]
     if len(live_paths) == 0:
         # Start a path for each box in first frame
@@ -25,7 +25,7 @@ def update_agent_paths(live_paths, dead_paths, dets, num_classes_to_use, time_st
                 # IoU scores for path lp
                 as1 = live_paths[lp]['allScores'][-1,:num_classes_to_use]
                 as2 = dets['allScores'][:,:num_classes_to_use]
-                box_to_lp_score = score_of_edge(live_paths[lp], dets, iouth, costtype, avoid_dets, as1, as2)
+                box_to_lp_score = score_of_edge(live_paths[lp], dets, iouth, costtype, avoid_dets, as1, as2, jumpgap)
                 
                 if np.sum(box_to_lp_score) > 0.1: 
                     # print('We are here', np.sum(box_to_lp_score)) 
@@ -70,7 +70,7 @@ def update_agent_paths(live_paths, dead_paths, dets, num_classes_to_use, time_st
                     lp_count += 1
 
     # live_paths = trim_paths(live_paths, trim_threshold, keep_num)
-    # dead_paths = remove_dead_paths(dead_paths, trim_threshold, time_stamp)
+    # dead_paths = remove_dead_paths(dead_paths, min_len, time_stamp)
 
     return live_paths, dead_paths
 
@@ -86,11 +86,11 @@ def trim_paths(live_paths, trim_threshold, keep_num):
     return live_paths
 
 
-def remove_dead_paths(live_paths, trim_threshold, time_stamp):
+def remove_dead_paths(live_paths, min_len, time_stamp):
     dead_paths = []
     dp_count = 0
     for olp in range(len(dead_paths)):
-        if time_stamp - live_paths[olp]['foundAt'][-1] >= trim_threshold:
+        if len(dead_paths[olp]['boxes']) >= min_len:
             dead_paths.append({'boxes': None, 'scores': None, 'allScores': None,
                                'foundAt': None, 'count': None})
             dead_paths[dp_count]['boxes'] = live_paths[olp]['boxes']
@@ -130,26 +130,32 @@ def sort_live_paths(live_paths, path_order_score, dead_paths, jumpgap, time_stam
 
     return sorted_live_paths, dead_paths
 
-def copy_live_to_dead(live_paths, dead_paths):
+def copy_live_to_dead(live_paths, dead_paths, min_len):
     dp_count = len(dead_paths)
     for lp in range(len(live_paths)):
-            dead_paths.append({'boxes': None, 'scores': None, 'allScores': None,
-                               'foundAt': None, 'count': None})
-            dead_paths[dp_count]['boxes'] = live_paths[lp]['boxes']
-            dead_paths[dp_count]['scores'] = live_paths[lp]['scores']
-            dead_paths[dp_count]['allScores'] = live_paths[lp]['allScores']
-            dead_paths[dp_count]['foundAt'] = live_paths[lp]['foundAt']
-            dead_paths[dp_count]['count'] = live_paths[lp]['count']
-            dp_count = dp_count + 1
+        # path_score = np.mean(live_paths[lp]['scores'])
+        # if len(live_paths[lp]['boxes']) >= min_len or path_score > 0.01:
+        dead_paths.append({'boxes': None, 'scores': None, 'allScores': None,
+                            'foundAt': None, 'count': None})
+        dead_paths[dp_count]['boxes'] = live_paths[lp]['boxes']
+        dead_paths[dp_count]['scores'] = live_paths[lp]['scores']
+        dead_paths[dp_count]['allScores'] = live_paths[lp]['allScores']
+        dead_paths[dp_count]['foundAt'] = live_paths[lp]['foundAt']
+        dead_paths[dp_count]['count'] = live_paths[lp]['count']
+        dp_count = dp_count + 1
 
     return dead_paths
 
 
-def score_of_edge(v1, v2, iouth, costtype, avoid_dets, as1, as2):
+def score_of_edge(v1, v2, iouth, costtype, avoid_dets, as1, as2, jumpgap):
 
     N2 = v2['boxes'].shape[0]
     score = np.zeros(N2)
-    ious = bbox_overlaps(v1['boxes'][-1,:], v2['boxes'])
+    curent_boxes = v1['boxes'][-1,:]
+    tm = min(jumpgap+1, v1['boxes'].shape[0])
+    past_boxes = v1['boxes'][-tm, :]
+    expected_boxes = curent_boxes + (curent_boxes-past_boxes)/max(1,tm-1)
+    ious = bbox_overlaps(expected_boxes, v2['boxes'])
     if ious.any()>1:
         print(ious)
     # pdb.set_trace()
@@ -160,14 +166,12 @@ def score_of_edge(v1, v2, iouth, costtype, avoid_dets, as1, as2):
                 score[i] = scores2
             elif costtype == 'scoreiou':
                 score[i] = (scores2 + ious[i])/2
-            elif costtype == 'scoreioul2':
+            elif costtype == 'ioul2':
                 score[i] = (scores2 + ious[i])/2
                 invl2_diff = 1.0/np.sqrt(np.sum((as1-as2[i,:])**2))
                 score[i] += invl2_diff
-            elif costtype == 'ioul2':
+            elif costtype == 'iou':
                 score[i] =  ious[i]
-                invl2_diff = 1.0/np.sqrt(np.sum((as1-as2[i,:])**2))
-                score[i] += invl2_diff
     return score
 
 
@@ -221,7 +225,7 @@ def fill_gaps(paths, min_len_with_gaps=8, minscore=0.3):
     for lp in range(lp_count):
         path = paths[lp]
         path_score = np.mean(path['scores'])
-        if len(path['boxes']) >= min_len_with_gaps-2 or path_score > minscore:
+        if len(path['boxes']) >= min_len_with_gaps or path_score > minscore:
             foundAt = path['foundAt']
             assert sorted(foundAt), 'foundAt should have been sorted i.e., paths should be built incremently'
             if are_there_gaps(foundAt):

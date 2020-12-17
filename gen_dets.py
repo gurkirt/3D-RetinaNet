@@ -10,13 +10,14 @@ import numpy as np
 import torch
 import pdb
 import pickle
+import copy
 import torch.utils.data as data_utils
 from modules.evaluation import evaluate_frames
 from modules.box_utils import decode, nms
 from data import custum_collate
 from modules import utils
 import modules.evaluation as evaluate
-
+from modules.utils import make_joint_probs_from_marginals
 logger = utils.get_logger(__name__)
 
 def gen_dets(args, net, val_dataset):
@@ -28,7 +29,7 @@ def gen_dets(args, net, val_dataset):
         args.det_itr = epoch
         logger.info('Testing at ' + str(epoch))
         
-        args.det_save_dir = os.path.join(args.SAVE_ROOT, "detections-{it:02d}-{sq:02d}/".format(it=epoch, sq=args.TEST_SEQ_LEN))
+        args.det_save_dir = os.path.join(args.SAVE_ROOT, "detections-{it:02d}-{sq:02d}-{n:d}/".format(it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS)))
         logger.info('detection saving dir is :: '+args.det_save_dir)
         
         is_all_done = True
@@ -146,8 +147,6 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
                     confidence_batch = confidence[b,s]
                     scores = confidence_batch[:, 0].squeeze().clone()
                     cls_dets, save_data = utils.filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidence_batch)
-                    # if save_data
-                    # print(save_data.shape)
                     det_boxes[0][0].append(cls_dets)
                     
                     
@@ -175,24 +174,18 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
 
 
 
-def make_joint_probs_from_marginals(frame_dets, childs, args):
-    pdb.set_trace()
-    
-    raise Exception('Not implemented')
-
-
-
 def gather_framelevel_detection(args, val_dataset):
     
     detections = {}
     for l, ltype in enumerate(args.label_types):
         detections[ltype] = {}
     
-    if args.DATASET == 'aarav':
+    if args.DATASET == 'road':
         detections['av_actions'] = {}
     else:
         detections['frame_actions'] = {}
     numv = len(val_dataset.video_list)
+
     for vid, videoname in enumerate(val_dataset.video_list):       
         vid_dir = os.path.join(args.det_save_dir, videoname)
         frames_list = os.listdir(vid_dir)
@@ -204,14 +197,14 @@ def gather_framelevel_detection(args, val_dataset):
                 dets = pickle.load(ff)
             frame_name = frame_name.rstrip('.pkl')
             # detections[videoname+frame_name] = {}
-            if args.DATASET == 'aarav':
+            if args.DATASET == 'road':
                 detections['av_actions'][videoname+frame_name] = dets['ego']
             else:
                 detections['frame_actions'][videoname+frame_name] = dets['ego']
             frame_dets = dets['main']
             
             if args.JOINT_4M_MARGINALS:
-                frame_dets = make_joint_probs_from_marginals(frame_dets, val_dataset.childs, args)
+                frame_dets = make_joint_probs_from_marginals(frame_dets, val_dataset.childs, args.num_classes_list)
             
             start_id = 4
             for l, ltype in enumerate(args.label_types):
@@ -239,10 +232,15 @@ def get_ltype_dets(frame_dets, start_id, numc, ltype, args):
                 cls_dets = utils.filter_detections(args, torch.from_numpy(scores), torch.from_numpy(boxes))
             elif pickn<= args.TOPK:
                 cls_dets = np.hstack((boxes[:pickn,:], scores[:pickn, np.newaxis]))
+                if not args.JOINT_4M_MARGINALS:
+                    cls_dets = cls_dets[scores>args.CONF_THRESH,:]
             else:
                 sorted_ind = np.argsort(-scores)
                 sorted_ind = sorted_ind[:args.TOPK]
                 cls_dets = np.hstack((boxes[sorted_ind,:], scores[sorted_ind, np.newaxis]))
+                scores = scores[sorted_ind]
+                if not args.JOINT_4M_MARGINALS:
+                    cls_dets = cls_dets[scores>args.CONF_THRESH,:]
         else:
             cls_dets = np.asarray([])
         dets.append(cls_dets)
@@ -251,45 +249,48 @@ def get_ltype_dets(frame_dets, start_id, numc, ltype, args):
 
 def eval_framewise_dets(args, val_dataset):
     for epoch in args.EVAL_EPOCHS:
+        log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}-{n:d}.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS)), "a", 10)
+        args.det_save_dir = os.path.join(args.SAVE_ROOT, "detections-{it:02d}-{sq:02d}-{n:d}/".format(it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS)))
+        args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}-{n:d}.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS))
+        result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}-{n:d}.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN,n=int(100*args.GEN_NMS))
         
-        log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "a", 10)
-        args.det_save_dir = "{pt:s}/detections-{it:02d}-{sq:02d}/".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
-        args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
-        result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
         if args.JOINT_4M_MARGINALS:
-            log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}-j4m.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN), "a", 10)
-            args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}-j4m.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
-            result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}-j4m.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+            log_file = open("{pt:s}/frame-level-resutls-{it:06d}-{sq:02d}-{n:d}-j4m.log".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS)), "a", 10)
+            args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}-{n:d}-j4m.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS))
+            result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}-{n:d}-j4m.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN,n=int(100*args.GEN_NMS))
         
+        doeval = False
         if not os.path.isfile(args.det_file_name):
-            logger.info('Gathering detection at ' + str(epoch))
+            logger.info('Gathering detection for ' + args.det_file_name)
             gather_framelevel_detection(args, val_dataset)
             logger.info('Done Gathering detections')
+            doeval = True
         else:
             logger.info('Detection will be loaded: ' + args.det_file_name)
         
-        if args.DATASET == 'aarav':
-            args.label_types =  args.label_types + ['av_actions']
+        if args.DATASET == 'road':
+            label_types =  args.label_types + ['av_actions']
         else:
-            args.label_type = args.label_types + ['frame_actions']
+            label_types = args.label_types + ['frame_actions']
 
-        result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN)
+        if doeval or not os.path.isfile(result_file):
+            results = {}
+            
+            for subset in args.SUBSETS:
+                if len(subset)<2:
+                    continue
+
+                sresults = evaluate_frames(val_dataset.anno_file, args.det_file_name, subset, iou_thresh=0.5, dataset=args.DATASET)
+                for _, label_type in enumerate(label_types):
+                    name = subset + ' & ' + label_type
+                    rstr = '\n\nResults for ' + name + '\n'
+                    logger.info(rstr)
+                    log_file.write(rstr+'\n')
+                    results[name] = {'mAP': sresults[label_type]['mAP'], 'APs': sresults[label_type]['ap_all']}
+                    for ap_str in sresults[label_type]['ap_strs']:
+                        logger.info(ap_str)
+                        log_file.write(ap_str+'\n')
+                        
+                with open(result_file, 'w') as f:
+                    json.dump(results, f)
         
-        results = {}
-        
-        for subset in args.SUBSETS:
-            if len(subset)<2:
-                continue
-            sresults = evaluate_frames(val_dataset.anno_file, args.det_file_name, subset, iou_thresh=0.5, dataset=args.DATASET)
-            for _, label_type in enumerate(args.label_types):
-                name = subset + ' & ' + label_type
-                rstr = '\n\nResults for ' + name + '\n'
-                logger.info(rstr)
-                log_file.write(rstr+'\n')
-                results[name] = {'mAP': sresults[label_type]['mAP'], 'APs': sresults[label_type]['ap_all']}
-                for ap_str in sresults[label_type]['ap_strs']:
-                    logger.info(ap_str)
-                    log_file.write(ap_str+'\n')
-                    
-            with open(result_file, 'w') as f:
-                json.dump(results, f)

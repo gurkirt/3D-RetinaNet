@@ -249,13 +249,13 @@ def get_gt_tubes(final_annots, subset, label_type, dataset):
     video_list = []
     tubes = {}
     for videoname in final_annots['db']:
-        if dataset == 'aarav':
+        if dataset == 'road':
             cond = is_part_of_subsets(final_annots['db'][videoname]['split_ids'], [subset])
         else:
             cond = videoname not in final_annots['trainvideos']
         if cond:
             video_list.append(videoname)
-            if dataset == 'aarav':
+            if dataset == 'road':
                 tubes[videoname] = get_filtered_tubes(
                     label_type+'_tubes', final_annots, videoname)
             else:
@@ -269,9 +269,9 @@ def get_det_class_tubes(tubes, cl_id):
     for video, video_tubes in tubes.items():
         for tube in video_tubes:
             if tube['label_id'] == cl_id:
-                scores, boxes = tube['scores'], tube['boxes']
-                frames, label_id  = tube['frames'], tube['label_id']
-                class_tubes.append([video, make_det_tube(scores, boxes, frames, label_id)])
+                # scores, boxes = tube['scores'], tube['boxes']
+                # frames, label_id  = tube['frames'], tube['label_id']
+                class_tubes.append([video, tube]) #make_det_tube(scores, boxes, frames, label_id)])
     return class_tubes
 
 
@@ -284,15 +284,19 @@ def get_gt_class_tubes(tubes, cl_id):
                 class_tubes[video].append(tube)
     return class_tubes
 
-def compute_class_ap(class_dets, class_gts, match_func, iou_thresh):
-
-    pr = np.empty((len(class_dets) + 1, 2), dtype=np.float32)
-    pr[0, 0] = 1.0
-    pr[0, 1] = 0.0
+def compute_class_ap(class_dets, class_gts, match_func, iou_thresh, metric_type=None):
 
     fn = max(1, sum([len(class_gts[iid])
                         for iid in class_gts]))  # false negatives
     num_postives = fn
+
+    if len(class_dets) == 0:
+        return  0,num_postives ,0,0
+    pr = np.empty((len(class_dets) + 1, 2), dtype=np.float32)
+    pr[0, 0] = 1.0
+    pr[0, 1] = 0.0
+
+    
     fp = 0  # false positives
     tp = 0  # true positives
     
@@ -309,8 +313,12 @@ def compute_class_ap(class_dets, class_gts, match_func, iou_thresh):
         score = det['score']
         # pdb.set_trace()
         if len(class_gts[iid]) > 0:
-            ious = np.asarray([match_func(det, gt)
-                                for gt in class_gts[iid]])
+            if metric_type is None:
+                ious = np.asarray([match_func(det, gt)
+                                    for gt in class_gts[iid]])
+            else:
+                ious = np.asarray([match_func(det, gt, metric_type)
+                                    for gt in class_gts[iid]])
             # print(ious)
             max_iou_id = np.argmax(ious)
             if ious[max_iou_id] >= iou_thresh:
@@ -331,24 +339,26 @@ def compute_class_ap(class_dets, class_gts, match_func, iou_thresh):
     
     class_ap = float(100*pr_to_ap(pr))
 
-    return class_ap, num_postives, count
+    return class_ap, num_postives, count, pr[count+1, 1]
 
 
-def evaluate_tubes(anno_file, det_file,  subset='val_3', dataset='aarav', iou_thresh=0.2):
+def evaluate_tubes(anno_file, det_file,  subset='val_3', dataset='road', iou_thresh=0.2, metric_type='stiou'):
 
     logger.info('Evaluating tubes for datasets '+ dataset)
+    logger.info('GT FILE:: '+ anno_file)
+    logger.info('Result File:: '+ det_file)
 
-    if dataset == 'aarav':
+    if dataset == 'road':
         with open(anno_file, 'r') as fff:
             final_annots = json.load(fff)
     else:
         with open(anno_file, 'rb') as fff:
             final_annots = pickle.load(fff)
 
-    with open(det_file, 'r') as fff:
-        detections = json.load(fff)
+    with open(det_file, 'rb') as fff:
+        detections = pickle.load(fff)
 
-    if dataset == 'aarav':
+    if dataset == 'road':
         label_types = final_annots['label_types']
     else:
         label_types = ['action']
@@ -356,13 +366,14 @@ def evaluate_tubes(anno_file, det_file,  subset='val_3', dataset='aarav', iou_th
     results = {} 
     for _, label_type in enumerate(label_types):
 
-        if dataset != 'aarav':
+        if dataset != 'road':
             classes = final_annots['classes']
         else:
             classes = final_annots[label_type+'_labels']
 
         logger.info('Evaluating {} {}'.format(label_type, len(classes)))
         ap_all = []
+        re_all = []
         ap_strs = []
         sap = 0.0
         video_list, gt_tubes = get_gt_tubes(final_annots, subset, label_type, dataset)
@@ -376,16 +387,20 @@ def evaluate_tubes(anno_file, det_file,  subset='val_3', dataset='aarav', iou_th
             class_dets = get_det_class_tubes(det_tubes, cl_id)
             class_gts = get_gt_class_tubes(gt_tubes, cl_id)
 
-            class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, get_tube_3Diou, iou_thresh)
+            class_ap, num_postives, count, recall = compute_class_ap(class_dets, class_gts, get_tube_3Diou, iou_thresh, metric_type=metric_type)
 
+            recall = recall*100
             sap += class_ap
             ap_all.append(class_ap)
+            re_all.append(recall)
             ap_str = class_name + ' : ' + str(num_postives) + \
-                ' : ' + str(count) + ' : ' + str(class_ap)
+                ' : ' + str(count) + ' : ' + str(class_ap) +\
+                ' : ' + str(recall)
             ap_strs.append(ap_str)
         mAP = sap/len(classes)
-        ap_strs.append('\nMean AP:: {:0.2f}'.format(mAP))
-        results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs}
+        mean_recall = np.mean(np.asarray(re_all))
+        ap_strs.append('\nMean AP:: {:0.2f} mean Recall {:0.2f}'.format(mAP,mean_recall))
+        results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs, 'recalls':re_all, 'mR':mean_recall}
         logger.info('MAP:: {}'.format(mAP))
     
     return results
@@ -419,7 +434,7 @@ def get_gt_frames_ucf24(final_annots, label_type):
 def get_gt_frames(final_annots, subsets, label_type, dataset):
     """Get video list form ground truth videos used in subset 
     and their ground truth frames """
-    if dataset == 'aarav':
+    if dataset == 'road':
         # video_list = []
         frames = {}
         if not isinstance(subsets, list):
@@ -435,10 +450,10 @@ def get_gt_frames(final_annots, subsets, label_type, dataset):
     return frames
 
 
-def get_det_class_frames(dets, cl_id, frame_ids):
+def get_det_class_frames(dets, cl_id, frame_ids, dataset):
     class_dets = []
     for frame_id in dets:
-        if frame_id in frame_ids:
+        if dataset == 'ucf24' or frame_id in frame_ids:
             all_frames_dets = dets[frame_id][cl_id]
             for i in range(all_frames_dets.shape[0]):
                 det = {'box':all_frames_dets[i,:4], 'score':all_frames_dets[i,4]}
@@ -458,7 +473,7 @@ def get_gt_class_frames(gts, cl_id):
     return frames
 
 
-def eval_framewise_ego_actions_aarav(final_annots, detections, subsets):
+def eval_framewise_ego_actions_road(final_annots, detections, subsets):
     """Get video list form ground truth videos used in subset 
     and their ground truth frames """
 
@@ -515,17 +530,19 @@ def eval_framewise_ego_actions_ucf24(final_annots, detections, subsets):
     return evaluate_ego(gts, preds, labels)
 
 
-def eval_framewise_ego_actions(final_annots, detections, subsets, dataset='aarav'):
-    if dataset == 'aarav':
-        return eval_framewise_ego_actions_aarav(final_annots, detections, subsets)
+def eval_framewise_ego_actions(final_annots, detections, subsets, dataset='road'):
+    if dataset == 'road':
+        return eval_framewise_ego_actions_road(final_annots, detections, subsets)
     else:
         return eval_framewise_ego_actions_ucf24(final_annots, detections, subsets)
 
 
-def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'):
+def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='road'):
     
+
     logger.info('Evaluating frames for datasets '+ dataset)
-    if dataset == 'aarav':
+    t0 = time.perf_counter()
+    if dataset == 'road':
         with open(anno_file, 'r') as fff:
             final_annots = json.load(fff)
     else:
@@ -536,49 +553,67 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='aarav'
         detections = pickle.load(fff)
 
     results = {}
-    if dataset == 'aarav':
+    if dataset == 'road':
         label_types = ['av_actions'] + ['agent_ness'] + final_annots['label_types']
     else:
         label_types = ['frame_actions', 'action_ness', 'action']
-    
+    t1 = time.perf_counter()
+    logger.info('Time taken to load for evaluation {}'.format(t1-t0))
     for nlt, label_type in enumerate(label_types):
         if label_type in ['av_actions', 'frame_actions']:
             mAP, ap_all, ap_strs = eval_framewise_ego_actions(final_annots, detections[label_type], subset, dataset)
+            re_all = [1.0 for _ in range(len(ap_all))]
             for apstr in ap_strs:
                 logger.info(apstr)
         else:
+            # t0 = time.perf_counter()
             ap_all = []
             ap_strs = []
+            re_all = []
             sap = 0.0
             gt_frames = get_gt_frames(final_annots, subset, label_type, dataset)
-            
+            t1 = time.perf_counter()
+            # logger.info('Time taken to get GT frame for evaluation {}'.format(t0-t1))
             if label_type == 'agent_ness':
                 classes = ['agent_ness']
             elif label_type == 'action_ness':
                 classes = ['action_ness']
-            elif dataset != 'aarav':
+            elif dataset != 'road':
                 classes = final_annots['classes']
             else:
                 classes = final_annots[label_type+'_labels']
             
             for cl_id, class_name in enumerate(classes):
+                t1 = time.perf_counter()
+            
                 # print(cl_id, class_name, label_type)
                 ## gather gt of class "class_name" from frames which are not marked igonre
                 class_gts = get_gt_class_frames(gt_frames, cl_id)
+                t2 = time.perf_counter()
+
                 frame_ids = [f for f in class_gts.keys()]
                 ## gather detection from only that are there in gt or not marked ignore
-                class_dets = get_det_class_frames(detections[label_type], cl_id, frame_ids) 
-                
-                class_ap, num_postives, count = compute_class_ap(class_dets, class_gts, compute_iou_dict, iou_thresh)
+                class_dets = get_det_class_frames(detections[label_type], cl_id, frame_ids, dataset) 
+                t3 = time.perf_counter()
 
+                class_ap, num_postives, count, recall = compute_class_ap(class_dets, class_gts, compute_iou_dict, iou_thresh)
+
+                recall = recall*100
                 sap += class_ap
                 ap_all.append(class_ap)
+                re_all.append(recall)
                 ap_str = class_name + ' : ' + str(num_postives) + \
-                    ' : ' + str(count) + ' : ' + str(class_ap)
-                logger.info(ap_str)
+                    ' : ' + str(count) + ' : ' + str(class_ap) +\
+                    ' : ' + str(recall)
                 ap_strs.append(ap_str)
+                t4 = time.perf_counter()
+                # logger.info('Time taken for GT {} DET {} EVAL {} in class {} \n{}'.format(t2-t1, t3-t2, t4-t3, class_name, ap_str))
+
             mAP = sap/len(classes)
-            ap_strs.append('\n'+label_type+' Mean AP:: {:0.2f}'.format(mAP))
-        results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs}
-    
+        mean_recall = np.mean(np.asarray(re_all))
+        ap_strs.append('\nMean AP:: {:0.2f} mean Recall {:0.2f}'.format(mAP,mean_recall))
+        results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs, 'recalls':re_all, 'mR':mean_recall}
+        logger.info('MAP:: {}'.format(mAP))
+    t1 = time.perf_counter()
+    logger.info('Time taken to complete evaluation {}'.format(t1-t0))
     return results

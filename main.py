@@ -20,7 +20,7 @@ def str2bool(v):
 
 def main():
     parser = argparse.ArgumentParser(description='Training single stage FPN with OHEM, resnet as backbone')
-    parser.add_argument('--MODE', default='train', 
+    parser.add_argument('--MODE', default='train',
                         help='MODE can be train, gen_dets, eval_frames, eval_tubes define SUBSETS accordingly, build tubes')
     # Name of backbone network, e.g. resnet18, resnet34, resnet50, resnet101 resnet152 are supported
     parser.add_argument('--ARCH', default='resnet50', 
@@ -33,7 +33,7 @@ def main():
                         help='Location to where imagenet pretrained models exists')  # /mnt/mars-fast/datasets/
     parser.add_argument('--SEQ_LEN', default=8,
                         type=int, help='NUmber of input frames')
-    parser.add_argument('--TEST_SEQ_LEN', default=32,
+    parser.add_argument('--TEST_SEQ_LEN', default=8,
                         type=int, help='NUmber of input frames')
     parser.add_argument('--MIN_SEQ_STEP', default=1,
                         type=int, help='DIFFERENCE of gap between the frames of sequence')
@@ -50,7 +50,7 @@ def main():
     parser.add_argument('--REG_HEAD_TIME_SIZE', default=3,
                     type=int, help='Temporal kernel size of regression head')
     #  Name of the dataset only voc or coco are supported
-    parser.add_argument('--DATASET', default='aarav', 
+    parser.add_argument('--DATASET', default='road', 
                         type=str,help='dataset being used')
     parser.add_argument('--TRAIN_SUBSETS', default='train_3,', 
                         type=str,help='Training SUBSETS seprated by ,')
@@ -99,7 +99,6 @@ def main():
                         type=float, help='Min threshold for Jaccard index for matching')
     parser.add_argument('--NEGTIVE_THRESHOLD', default=0.4,
                         type=float, help='Max threshold Jaccard index for matching')
-
     # Evaluation hyperparameters
     parser.add_argument('--EVAL_EPOCHS', default='30', 
                         type=str, help='eval epoch')
@@ -107,30 +106,31 @@ def main():
                         type=int, help='Number of training epoch before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold')
-    parser.add_argument('--CONF_THRESH', default=0.01, 
+    parser.add_argument('--CONF_THRESH', default=0.025, 
                         type=float, help='Confidence threshold for evaluation')
-    parser.add_argument('--NMS_THRESH', default=0.45, 
+    parser.add_argument('--NMS_THRESH', default=0.5, 
                         type=float, help='NMS threshold')
     parser.add_argument('--TOPK', default=25, 
                         type=int, help='topk for evaluation')
-    parser.add_argument('--GEN_CONF_THRESH', default=0.05, 
+    parser.add_argument('--GEN_CONF_THRESH', default=0.025, 
                         type=float, help='Confidence threshold at the time of generation')
-    parser.add_argument('--GEN_TOPK', default=500, 
+    parser.add_argument('--GEN_TOPK', default=100, 
                         type=int, help='topk at the time of generation')
-    parser.add_argument('--GEN_NMS', default=0.85, 
+    parser.add_argument('--GEN_NMS', default=0.8, 
                         type=float, help='topk at the time of generation')
-    parser.add_argument('--CLASSWISE_NMS', default=True, 
+    parser.add_argument('--CLASSWISE_NMS', default=False, 
                         type=str2bool, help='topk at the time of generation')
-    parser.add_argument('--JOINT_4M_MARGINALS', default=False, 
+    parser.add_argument('--JOINT_4M_MARGINALS', default=True, 
                         type=str2bool, help='topk at the time of generation')
+    
     ## paths hyper parameters
-    parser.add_argument('--COMPUTE_PATHS', default=True, 
+    parser.add_argument('--COMPUTE_PATHS', default=False, 
                         type=str2bool, help=' COMPUTE_PATHS')
-    parser.add_argument('--PATHS_IOUTH', default=0.1,
+    parser.add_argument('--PATHS_IOUTH', default=0.5,
                         type=float, help='Iouth for building paths')
     parser.add_argument('--PATHS_COST_TYPE', default='scoreiou',
                         type=str, help='eval PATHS_IOUTH')
-    parser.add_argument('--PATHS_JUMP_GAP', default=2,
+    parser.add_argument('--PATHS_JUMP_GAP', default=4,
                         type=int, help='eval PATHS_JUMP_GAP')
     parser.add_argument('--PATHS_MIN_LEN', default=6,
                         type=int, help='eval PATHS_MIN_LEN')
@@ -138,17 +138,19 @@ def main():
                         type=float, help='eval PATHS_MINSCORE')
     
     ## paths hyper parameters
-    parser.add_argument('--COMPUTE_TUBES', default=True, type=str2bool, help='eval COMPUTE_TUBES')
-    parser.add_argument('--TUBES_ALPHA', default=5,
+    parser.add_argument('--COMPUTE_TUBES', default=False, type=str2bool, help='eval COMPUTE_TUBES')
+    parser.add_argument('--TUBES_ALPHA', default=0,
                         type=float, help='eval TUBES_ALPHA')
-    parser.add_argument('--TUBES_TOPK', default=3,
+    parser.add_argument('--TRIM_METHOD', default='none',
+                        type=str, help='eval TUBES_ALPHA')
+    parser.add_argument('--TUBES_TOPK', default=10,
                         type=int, help='eval TUBES_TOPK')
     parser.add_argument('--TUBES_MINLEN', default=5,
                         type=int, help='eval TUBES_TOPK')
-    parser.add_argument('--TUBES_EVAL_THRESH', default=0.2,
-                        type=float, help='eval TUBES_Thtrshold at evaluation time')
-    
-    # Progress logging
+    parser.add_argument('--TUBES_EVAL_THRESHS', default='0.2,0.5,0.75',
+                        type=str, help='eval TUBES_Thtrshold at evaluation time')
+    # parser.add_argument('--TRAIL_ID', default=0,
+    #                     type=int, help='eval TUBES_Thtrshold at evaluation time')
     parser.add_argument('--LOG_START', default=10, 
                         type=int, help='start loging after k steps for text/tensorboard') 
                         # Let initial ripples settle down
@@ -218,7 +220,7 @@ def main():
     else:
         args.SEQ_LEN = args.TEST_SEQ_LEN
         args.MAX_SEQ_STEP = 1
-        args.SUBSETS = args.VAL_SUBSETS # + args.TEST_SUBSETS + 
+        args.SUBSETS = args.VAL_SUBSETS + args.TEST_SUBSETS
         full_test = True #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0
@@ -270,7 +272,8 @@ def main():
         val(args, net, val_dataset)
     elif args.MODE == 'gen_dets':
         gen_dets(args, net, val_dataset)
-        # eval_framewise_dets(args, val_dataset)
+        eval_framewise_dets(args, val_dataset)
+        # build_eval_tubes(args, val_dataset)
     elif args.MODE == 'eval_frames':
         eval_framewise_dets(args, val_dataset)
     elif args.MODE == 'eval_tubes':
