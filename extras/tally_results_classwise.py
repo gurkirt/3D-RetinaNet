@@ -34,7 +34,7 @@ if __name__ == '__main__':
     seq, bs, tseq = (8,4,32)
     com_text = {'joint':'','marginals':'-j4m'}
     for combination_type in ['joint', 'marginals']:
-        for net in ['I3D','C2D']:
+        for net in ['I3D',]:
             logger.write('\n\nRESULTS FOR '+net+ ' ' + combination_type +'\n\n')
             table = 'Train-subset & #instances '
             for l in subsets:
@@ -87,7 +87,7 @@ if __name__ == '__main__':
                                     vfcounts[subset] = {}
                                 vfaps[train_subset+subset][result_mode] = aps
                             else:
-                                logger.write(result_file)
+                                # logger.write(result_file)
                                 vfaps[train_subset+subset][result_mode] = aps*0.0
                             
                             temp_counts = filter_counts(counts[result_mode][subset][temp_label_type], labels)
