@@ -145,10 +145,6 @@ def perform_building(args, video_list, epoch):
                 det_boxes = det_boxes['main']
                 pickn = min(args.TOPK, det_boxes.shape[0])
                 
-                # if False: # args.CLASSWISE_NMS: #args.TOPK>= det_boxes.shape[0]:
-                #     det_boxes = utils.filter_detections_for_tubing(args, torch.from_numpy(det_boxes[:,4]), torch.from_numpy(det_boxes[:,:4]), torch.from_numpy(det_boxes[:,4:]))
-                # else:
-                
                 det_boxes = det_boxes[:args.TOPK,:]
                 det_boxes = det_boxes[det_boxes[:,4]>args.CONF_THRESH,:]
 

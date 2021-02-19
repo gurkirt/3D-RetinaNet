@@ -20,17 +20,20 @@ def str2bool(v):
 
 def main():
     parser = argparse.ArgumentParser(description='Training single stage FPN with OHEM, resnet as backbone')
+    parser.add_argument('DATA_ROOT', help='Location to root directory for dataset reading') # /mnt/mars-fast/datasets/
+    parser.add_argument('SAVE_ROOT', help='Location to root directory for saving checkpoint models') # /mnt/mars-alpha/
+    parser.add_argument('MODEL_PATH',help='Location to root directory where kinetics pretrained models are stored')
+    
     parser.add_argument('--MODE', default='train',
                         help='MODE can be train, gen_dets, eval_frames, eval_tubes define SUBSETS accordingly, build tubes')
     # Name of backbone network, e.g. resnet18, resnet34, resnet50, resnet101 resnet152 are supported
     parser.add_argument('--ARCH', default='resnet50', 
                         type=str, help=' base arch')
-    parser.add_argument('--MODEL_TYPE', default='C2D',
+    parser.add_argument('--MODEL_TYPE', default='I3D',
                         type=str, help=' base model')
     parser.add_argument('--ANCHOR_TYPE', default='RETINA',
                         type=str, help='type of anchors to be used in model')
-    parser.add_argument('--MODEL_PATH', default='kinetics',
-                        help='Location to where imagenet pretrained models exists')  # /mnt/mars-fast/datasets/
+    
     parser.add_argument('--SEQ_LEN', default=8,
                         type=int, help='NUmber of input frames')
     parser.add_argument('--TEST_SEQ_LEN', default=8,
@@ -49,6 +52,7 @@ def main():
                         type=int, help='Temporal kernel size of classification head')
     parser.add_argument('--REG_HEAD_TIME_SIZE', default=3,
                     type=int, help='Temporal kernel size of regression head')
+    
     #  Name of the dataset only voc or coco are supported
     parser.add_argument('--DATASET', default='road', 
                         type=str,help='dataset being used')
@@ -165,10 +169,6 @@ def main():
     parser.add_argument('--MULTI_GPUS', default=True, type=str2bool, help='If  more than 0 then use all visible GPUs by default only one GPU used ') 
 
     # Use CUDA_VISIBLE_DEVICES=0,1,4,6 to select GPUs to use
-    parser.add_argument('--DATA_ROOT', default='/mnt/mercury-fast/datasets/', 
-                    help='Location to root directory fo dataset') # /mnt/mars-fast/datasets/
-    parser.add_argument('--SAVE_ROOT', default='/mnt/mercury-alpha/', 
-                    help='Location to save checkpoint models') # /mnt/sun-gamma/datasets/
 
 
     ## Parse arguments
@@ -220,7 +220,7 @@ def main():
     else:
         args.SEQ_LEN = args.TEST_SEQ_LEN
         args.MAX_SEQ_STEP = 1
-        args.SUBSETS = args.VAL_SUBSETS + args.TEST_SUBSETS
+        args.SUBSETS = args.TEST_SUBSETS
         full_test = True #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0

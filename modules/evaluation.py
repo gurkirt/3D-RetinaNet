@@ -421,7 +421,7 @@ def get_gt_frames_ucf24(final_annots, label_type):
             numf = database[videoname]['numf']
             fframe_level_annos, _ = get_frame_level_annos_ucf24(database[videoname]['annotations'], numf, num_classes)
             for frame_id , frame in enumerate(fframe_level_annos):
-                frame_name = '{:08d}'.format(int(frame_id+1))
+                frame_name = '{:05d}'.format(int(frame_id+1))
                 all_boxes = []
                 label = 0 if label_type == 'action_ness' else database[videoname]['label']
                 for k in range(len(frame['boxes'])):
@@ -492,12 +492,12 @@ def eval_framewise_ego_actions_road(final_annots, detections, subsets):
             frames = final_annots['db'][videoname]['frames']
             
             for frame_id , frame in frames.items():
-                # frame_name = '{:08d}'.format(int(frame_id))
-                frame_name = '{:08d}'.format(int(frame_id))
+                # frame_name = '{:05d}'.format(int(frame_id))
+                frame_name = '{:05d}'.format(int(frame_id))
                 if frame['annotated']>0:
                     gts = filter_labels(frame[label_key+'_ids'], all_labels, labels)
                     filtered_gts.append(gts)
-                    frame_name = '{:08d}'.format(int(frame_id))
+                    frame_name = '{:05d}'.format(int(frame_id))
                     filtered_preds.append(detections[videoname+frame_name])
 
     gts = np.asarray(filtered_gts)
@@ -520,7 +520,7 @@ def eval_framewise_ego_actions_ucf24(final_annots, detections, subsets):
             numf = database[videoname]['numf']
             fframe_level_annos, _ = get_frame_level_annos_ucf24(database[videoname]['annotations'], numf, num_classes)
             for frame_id , frame in enumerate(fframe_level_annos):
-                frame_name = '{:08d}'.format(int(frame_id+1))
+                frame_name = '{:05d}'.format(int(frame_id+1))
                 gts = [frame['ego_label']]
                 filtered_gts.append(gts)
                 filtered_preds.append(detections[videoname+frame_name])
@@ -585,7 +585,6 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='road')
             
             for cl_id, class_name in enumerate(classes):
                 t1 = time.perf_counter()
-            
                 # print(cl_id, class_name, label_type)
                 ## gather gt of class "class_name" from frames which are not marked igonre
                 class_gts = get_gt_class_frames(gt_frames, cl_id)

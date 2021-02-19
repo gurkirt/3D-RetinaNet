@@ -160,7 +160,7 @@ def get_filtered_frames(label_key, final_annots, videoname, filtered_gts):
         labels = final_annots[label_key+'_labels']
     
     for frame_id , frame in frames.items():
-        frame_name = '{:08d}'.format(int(frame_id))
+        frame_name = '{:05d}'.format(int(frame_id))
         if frame['annotated']>0:
             all_boxes = []
             if 'annos' in frame:
@@ -192,7 +192,7 @@ def get_av_actions(final_annots, videoname):
     
     filtered_gts = {}
     for frame_id , frame in frames.items():
-        frame_name = '{:08d}'.format(int(frame_id))
+        frame_name = '{:05d}'.format(int(frame_id))
         if frame['annotated']>0:
             gts = filter_labels(frame[label_key+'_ids'], all_labels, labels)
             filtered_gts[videoname+frame_name] = gts
@@ -502,7 +502,7 @@ class VideoDataset(tutils.data.Dataset):
             if self.DATASET == 'ucf24':
                 img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num+1)
             else:
-                img_name = self._imgpath + '/{:s}/{:08d}.jpg'.format(videoname, frame_num+1)
+                img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num+1)
 
             img = Image.open(img_name).convert('RGB')
             images.append(img)

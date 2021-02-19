@@ -95,7 +95,7 @@ def set_args(args):
         args.VAL_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
     if len(args.TEST_SUBSETS) < 1:
         # args.TEST_SUBSETS = [ss.replace('train', 'val') for ss in args.TRAIN_SUBSETS]
-        args.TEST_SUBSETS.append('test')
+        args.TEST_SUBSETS = args.VAL_SUBSETS
     
     for subsets in [args.TRAIN_SUBSETS, args.VAL_SUBSETS, args.TEST_SUBSETS]:
         for subset in subsets:
@@ -112,30 +112,20 @@ def set_args(args):
     args.hostname = hostname
     args.user = username
     
-    args.model_init = 'none'
-    if not args.MODEL_PATH.endswith('.pth'):
-        assert args.MODEL_PATH in ['imagenet','kinetics'] 
-        args.model_init = args.MODEL_PATH
-        if args.MODEL_PATH == 'imagenet':
-            args.MODEL_PATH = os.path.join('/mnt/mercury-alpha/pretrained_models/', args.MODEL_PATH, args.ARCH+'.pth')
-        else:
-            args.MODEL_PATH = os.path.join('/mnt/mercury-alpha/pretrained_models/', args.MODEL_PATH, args.ARCH+args.MODEL_TYPE+'.pth')
-            
+    args.model_init = 'kinetics'
 
-    if username == 'gurkirt':
-        if hostname == 'mars':
-            args.DATA_ROOT = '/mnt/mars-fast/datasets/'
-            args.SAVE_ROOT = '/mnt/mercury-alpha/'
-        elif hostname == 'venus':
-            args.DATA_ROOT = '/mnt/venus-fast/datasets/'
-            args.SAVE_ROOT = '/mnt/mercury-alpha/'
-        elif hostname in ['sun','mercury']:
-            args.DATA_ROOT = '/mnt/mercury-fast/datasets/'
-            args.SAVE_ROOT = '/mnt/mercury-alpha/'
-        else:
-            raise('ERROR!!!!!!!! Specify directories')
+    assert args.MODEL_PATH.endswith('kinetics-pt') or args.MODEL_PATH.endswith('imagenet-pt') 
+    args.model_init = 'imagenet' if args.MODEL_PATH.endswith('imagenet-pt') else 'kinetics'
+    
+    if args.MODEL_PATH == 'imagenet':
+        args.MODEL_PATH = os.path.join(args.MODEL_PATH, args.ARCH+'.pth')
+    else:
+        args.MODEL_PATH = os.path.join(args.MODEL_PATH, args.ARCH+args.MODEL_TYPE+'.pth')
+            
     
     print('Your working directories are::\nLOAD::> ', args.DATA_ROOT, '\nSAVE::> ', args.SAVE_ROOT)
+    print('Your model will be initialized using', args.MODEL_PATH)
+    
     return args
 
 
