@@ -77,7 +77,7 @@ def copy_source(source_dir):
 def set_args(args):
     args.MAX_SIZE = int(args.MIN_SIZE*1.35)
     args.MILESTONES = [int(val) for val in args.MILESTONES.split(',')]
-    args.GAMMAS = [float(val) for val in args.GAMMAS.split(',')]
+    #args.GAMMAS = [float(val) for val in args.GAMMAS.split(',')]
     args.EVAL_EPOCHS = [int(val) for val in args.EVAL_EPOCHS.split(',')]
 
     args.TRAIN_SUBSETS = [val for val in args.TRAIN_SUBSETS.split(',') if len(val)>1]
@@ -113,6 +113,8 @@ def set_args(args):
     args.user = username
     
     args.model_init = 'kinetics'
+
+    args.MODEL_PATH = args.MODEL_PATH[:-1] if args.MODEL_PATH.endswith('/') else args.MODEL_PATH 
 
     assert args.MODEL_PATH.endswith('kinetics-pt') or args.MODEL_PATH.endswith('imagenet-pt') 
     args.model_init = 'imagenet' if args.MODEL_PATH.endswith('imagenet-pt') else 'kinetics'

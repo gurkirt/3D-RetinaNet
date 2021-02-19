@@ -2,7 +2,8 @@ import torch, pdb
 import torch.optim as optim
 # from .madamw import Adam as AdamM
 # from .adamw import Adam as AdamW
-# from torch.optim.lr_scheduler import MultiStepLR
+
+from torch.optim.lr_scheduler import MultiStepLR
 
 class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     def __init__(self, optimizer, MILESTONES, GAMMAS, last_epoch=-1):
@@ -18,8 +19,8 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
             index = self.MILESTONES.index(self.last_epoch)
             return [group['lr'] * self.GAMMAS[index] for group in self.optimizer.param_groups]
     
-    def print_lr(self):
-        print([[group['name'], group['lr']] for group in self.optimizer.param_groups])
+    #def print_lr(self):
+    #   print([[group['name'], group['lr']] for group in self.optimizer.param_groups])
 
 def get_optim(args, net):
     freeze_layers = ['backbone_net.layer'+str(n) for n in range(1, args.FREEZE_UPTO+1)]
@@ -68,6 +69,8 @@ def get_optim(args, net):
     
     solver_print_str += 'optimizer is '+ args.OPTIM + '\nDone solver configs\n\n'
 
-    scheduler = WarmupMultiStepLR(optimizer, args.MILESTONES, args.GAMMAS)
+    #print(args.MILSTONES, args.GAMMAS)
+    #scheduler = WarmupMultiStepLR(optimizer, args.MILESTONES, args.GAMMAS)
+    scheduler = MultiStepLR(optimizer, args.MILESTONES, args.GAMMA)
 
     return optimizer, scheduler, solver_print_str

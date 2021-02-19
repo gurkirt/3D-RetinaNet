@@ -353,7 +353,7 @@ class VideoDataset(tutils.data.Dataset):
         
     def _make_lists_road(self):
 
-        self.anno_file  = self.root + 'annots_12fps_full_v1.0.json'
+        self.anno_file  = os.path.join(self.root, 'road_trainval_v1.0.json')
 
         with open(self.anno_file,'r') as fff:
             final_annots = json.load(fff)

@@ -87,8 +87,8 @@ def main():
                         type=float, help='momentum')
     parser.add_argument('--MILESTONES', default='20,25', 
                         type=str, help='Chnage the lr @')
-    parser.add_argument('--GAMMAS', default='0.1,0.1', 
-                        type=str, help='Gamma update for SGD')
+    parser.add_argument('--GAMMA', default=0.1, 
+                        type=float, help='Gamma update for SGD')
     parser.add_argument('--WEIGHT_DECAY', default=1e-4, 
                         type=float, help='Weight decay for SGD')
     
