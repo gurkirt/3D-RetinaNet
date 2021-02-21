@@ -15,6 +15,7 @@ if __name__ == '__main__':
     modes = [['frames',['frame_actions', 'action_ness', 'action']],
             ['video',['action',]]]
     logger = open('results_ucf24.tex','w')
+    
     for result_mode, label_types in modes:
         logger.write('\n\nRESULTS FOR '+result_mode+'\n\n')
     

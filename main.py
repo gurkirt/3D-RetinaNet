@@ -120,19 +120,19 @@ def main():
                         type=float, help='Confidence threshold at the time of generation')
     parser.add_argument('--GEN_TOPK', default=100, 
                         type=int, help='topk at the time of generation')
-    parser.add_argument('--GEN_NMS', default=0.8, 
-                        type=float, help='topk at the time of generation')
+    parser.add_argument('--GEN_NMS', default=0.5, 
+                        type=float, help='NMS at the time of generation')
     parser.add_argument('--CLASSWISE_NMS', default=False, 
-                        type=str2bool, help='topk at the time of generation')
-    parser.add_argument('--JOINT_4M_MARGINALS', default=True, 
-                        type=str2bool, help='topk at the time of generation')
+                        type=str2bool, help='apply classwise NMS/no tested properly')
+    parser.add_argument('--JOINT_4M_MARGINALS', default=False, 
+                        type=str2bool, help='generate score of joints i.e. duplexes or triplet by marginals like agents and actions scores')
     
     ## paths hyper parameters
     parser.add_argument('--COMPUTE_PATHS', default=False, 
                         type=str2bool, help=' COMPUTE_PATHS')
     parser.add_argument('--PATHS_IOUTH', default=0.5,
                         type=float, help='Iouth for building paths')
-    parser.add_argument('--PATHS_COST_TYPE', default='scoreiou',
+    parser.add_argument('--PATHS_COST_TYPE', default='score',
                         type=str, help='eval PATHS_IOUTH')
     parser.add_argument('--PATHS_JUMP_GAP', default=4,
                         type=int, help='eval PATHS_JUMP_GAP')
@@ -273,7 +273,7 @@ def main():
     elif args.MODE == 'gen_dets':
         gen_dets(args, net, val_dataset)
         eval_framewise_dets(args, val_dataset)
-        # build_eval_tubes(args, val_dataset)
+        build_eval_tubes(args, val_dataset)
     elif args.MODE == 'eval_frames':
         eval_framewise_dets(args, val_dataset)
     elif args.MODE == 'eval_tubes':

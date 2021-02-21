@@ -29,7 +29,7 @@ def build_eval_tubes(args, val_dataset):
         
         args.det_save_dir = args.det_save_dir = os.path.join(args.SAVE_ROOT, "detections-{it:02d}-{sq:02d}-{n:d}/".format(it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS)))
         args.tube_save_dir = "{pt:s}/tubes-{it:02d}-{sq:02d}-{n:d}-{tk:d}-{s:s}-{io:d}-{jp:d}/".format(pt=args.SAVE_ROOT, it=epoch,  
-                            sq=args.TEST_SEQ_LEN,  n=int(100*args.GEN_NMS), tk=args.TOPK, s=args. PATHS_COST_TYPE,
+                            sq=args.TEST_SEQ_LEN,  n=int(100*args.GEN_NMS), tk=args.TOPK, s=args.PATHS_COST_TYPE,
                             io=int(args.PATHS_IOUTH*100), jp=args.PATHS_JUMP_GAP)
         tube_file = args.tube_save_dir+ 'tubes_{}_{:d}.pkl'.format(args.TRIM_METHOD, int(args.TUBES_ALPHA*10))
         if args.JOINT_4M_MARGINALS:
