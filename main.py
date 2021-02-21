@@ -151,7 +151,7 @@ def main():
                         type=int, help='eval TUBES_TOPK')
     parser.add_argument('--TUBES_MINLEN', default=5,
                         type=int, help='eval TUBES_TOPK')
-    parser.add_argument('--TUBES_EVAL_THRESHS', default='0.2,0.5,0.75',
+    parser.add_argument('--TUBES_EVAL_THRESHS', default='0.2,0.5',
                         type=str, help='eval TUBES_Thtrshold at evaluation time')
     # parser.add_argument('--TRAIL_ID', default=0,
     #                     type=int, help='eval TUBES_Thtrshold at evaluation time')
