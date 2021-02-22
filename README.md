@@ -245,7 +245,3 @@ If this work has been helpful in your research please cite following articles:
       publisher={SAGE Publications Sage UK: London, England}
     }
 
-
-## References
-- [1] G. Singh, S Saha, M. Sapienza, P. H. S. Torr and F Cuzzolin. Online Real time Multiple Spatiotemporal Action Localisation and Prediction. ICCV, 2017. It is used for tube linking and trimming.
-
