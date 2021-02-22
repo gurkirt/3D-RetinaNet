@@ -230,13 +230,13 @@ def get_ltype_dets(frame_dets, start_id, numc, ltype, args):
             pickn = boxes.shape[0]
             if args.CLASSWISE_NMS:
                 cls_dets = utils.filter_detections(args, torch.from_numpy(scores), torch.from_numpy(boxes))
-            elif pickn<= args.TOPK:
+            elif pickn<= args.TOPK+15:
                 cls_dets = np.hstack((boxes[:pickn,:], scores[:pickn, np.newaxis]))
                 if not args.JOINT_4M_MARGINALS:
                     cls_dets = cls_dets[scores>args.CONF_THRESH,:]
             else:
                 sorted_ind = np.argsort(-scores)
-                sorted_ind = sorted_ind[:args.TOPK]
+                sorted_ind = sorted_ind[:args.TOPK+15]
                 cls_dets = np.hstack((boxes[sorted_ind,:], scores[sorted_ind, np.newaxis]))
                 scores = scores[sorted_ind]
                 if not args.JOINT_4M_MARGINALS:

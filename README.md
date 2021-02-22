@@ -36,7 +36,7 @@ We need three things to get started with training: datasets, kinetics pre-traine
 
   - Install [Pytorch](https://pytorch.org/) and [torchvision](http://pytorch.org/docs/torchvision/datasets.html)
   - INstall tensorboardX viad `pip install tensorboardx`
-  - Pre-trained weight on [kinetics-400](https://deepmind.com/research/open-source/kinetics). Download them from from [Google-Drive](https://drive.google.com/drive/folders/1tOwQtQD3HWiTTp_ZgPCEWd4W-UKiglbt?usp=sharing). Name the folder `kinetics-pt`, it is important to name it right. 
+  - Pre-trained weight on [kinetics-400](https://deepmind.com/research/open-source/kinetics). Download them from from [Google-Drive](https://drive.google.com/drive/folders/1xERCC1wa1pgcDtrZxPgDKteIQLkLByPS?usp=sharing). Name the folder `kinetics-pt`, it is important to name it right. 
 
 
 
@@ -67,6 +67,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py /home/user/ /home/user/  /home/user/
   * During training checkpoint is saved every epoch also log it's frame-level `frame-mean-ap` on a subset of validation split test.
   * Crucial parameters are `LR`, `MILESTONES`, `MAX_EPOCHS`, and `BATCH_SIZE` for training process.
   * `label_types` is very important variable, it defines label-types are being used for training and validation time it is bummed up by one with `ego-action` label type. It is created in `data\dataset.py` for each dataset separately and copied to `args` in `main.py`, further used at the time of evaluations.
+  * Event detection and triplet detection is used interchangeably in this code base. 
 
 ## Testing and Building Tubes
 To generate the tubes and evaluate them, first, you will need frame-level detection and link them. It is pretty simple in out case. Similar to training command, you can run following commands. These can run on single GPUs. 
@@ -97,11 +98,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py /home/user/ /home/user/  /home/user/
 ## Performance
 
 Here, you find the reproduced  results from our paper. We use training split #3 for reproduction on a different machines compared to where results were generated for the paper. Below you will find the test results on validation split #3, which closer to test set compared to other split in terms of environmental conditions.
-We there is little change in learning rate here, so results are little different than the paper.
+We there is little change in learning rate here, so results are little different than the paper. Also, there are six tasks in ROAD dataset that makes it difficult balance the learning among tasks.
 
-Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights used for `resnet50I3D`, download link to given above in <a href=#requirements> Requirements section</a>. Results on split #3. 
+Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights used for `resnet50I3D`, download link to given above in <a href=#requirements> Requirements section</a>. Results on split #3 with test-sequence length being 8 `<frame-AP@0.5>/<video-mAP@0.2>`. 
 
-Event detection and triplet detection is used interchangeably in this code base. 
+
 
 <table style="width:100% th">
   <tr>
@@ -115,7 +116,7 @@ Event detection and triplet detection is used interchangeably in this code base.
   </tr>
   <tr>
     <td align="left">Agentness</td> 
-    <td>56.3</td>
+    <td>54.7</td>
     <!-- <td>32.07</td>
     <td>00.85</td> 
     <td>07.26</td>
@@ -124,7 +125,7 @@ Event detection and triplet detection is used interchangeably in this code base.
   </tr>
   <tr>
     <td align="left">Agent</td> 
-    <td>31.1/24.3</td>
+    <td>31.1/26.0</td>
     <!-- <td>32.07</td>
     <td>00.85</td> 
     <td>07.26</td>
@@ -133,7 +134,7 @@ Event detection and triplet detection is used interchangeably in this code base.
   </tr>
   <tr>
     <td align="left">Action</td> 
-    <td>22.0/15.0</td>
+    <td>22.0/16.1</td>
     <!-- <td>36.37</td> 
     <td>07.94</td>
     <td>14.37</td>
@@ -142,7 +143,7 @@ Event detection and triplet detection is used interchangeably in this code base.
   </tr>
   <tr>
     <td align="left">Location</td> 
-    <td>27.3/21.6</td>
+    <td>27.3/24.2</td>
     <!-- <td>43.00</td> 
     <td>14.10</td>
     <td>19.20</td>
@@ -151,7 +152,7 @@ Event detection and triplet detection is used interchangeably in this code base.
   </tr>
   <tr>
     <td align="left">Duplexes </td> 
-    <td>23.7/18.4</td>
+    <td>23.7/19.5</td>
     <!-- <td>46.30</td>
     <td>15.00</td> 
     <td>20.40</td>
@@ -160,7 +161,7 @@ Event detection and triplet detection is used interchangeably in this code base.
   </tr>
   <tr>
     <td align="left">Events/triplets </td> 
-    <td>13.9/14.9</td>
+    <td>13.9/15.5</td>
     <!-- <td>40.59</td>
     <td>14.06</td>
     <td>18.48</td>
@@ -216,27 +217,15 @@ Event detection and triplet detection is used interchangeably in this code base.
 
 
 ##### Download pre-trained weights
-- Currently, we provide the following PyTorch models: 
-    * trained weights are available from my [Google Drive](https://drive.google.com/drive/folders/1Z42S8fQt4Amp1HsqyBOoHBtgVKUzJuJ8?usp=sharing)   
-- These models can be used to reproduce above table which is almost identical in our [paper](https://arxiv.org/pdf/1611.08563.pdf) 
+- Currently, we provide the models from above table: 
+    * trained weights are available from my [Google Drive](https://drive.google.com/drive/folders/1yrzf1VKscOlysXxKDh4N_6uRvt8-dxa-?usp=sharing)   
+- These models can be used to reproduce above table which is almost same as in our [paper](#) 
 
 ## Citation
 If this work has been helpful in your research please consider citing [1] and [4]
 
-      @inproceedings{singh2016online,
-        title={Online Real time Multiple Spatiotemporal Action Localisation and Prediction},
-        author={Singh, Gurkirt and Saha, Suman and Sapienza, Michael and Torr, Philip and Cuzzolin, Fabio},
-        jbooktitle={ICCV},
-        year={2017}
-      }
+    coming soon ........
 
 ## References
-- [1] Wei Liu, et al. SSD: Single Shot MultiBox Detector. [ECCV2016]((http://arxiv.org/abs/1512.02325)).
-- [2] S. Saha, G. Singh, M. Sapienza, P. H. S. Torr, and F. Cuzzolin, Deep learning for detecting multiple space-time action tubes in videos. BMVC 2016 
-- [3] X. Peng and C. Schmid. Multi-region two-stream R-CNN for action detection. ECCV 2016
-- [4] G. Singh, S Saha, M. Sapienza, P. H. S. Torr and F Cuzzolin. Online Real time Multiple Spatiotemporal Action Localisation and Prediction. ICCV, 2017.
-- [5] Kalogeiton, V., Weinzaepfel, P., Ferrari, V. and Schmid, C., 2017. Action Tubelet Detector for Spatio-Temporal Action Localization. ICCV, 2017.
-- [Original SSD Implementation (CAFFE)](https://github.com/weiliu89/caffe/tree/ssd)
-- A huge thanks to Max deGroot, Ellis Brown for Pytorch implementation of [SSD](https://github.com/amdegroot/ssd.pytorch)
- 
+- [1] G. Singh, S Saha, M. Sapienza, P. H. S. Torr and F Cuzzolin. Online Real time Multiple Spatiotemporal Action Localisation and Prediction. ICCV, 2017. It is used for tube linking and trimming.
 
