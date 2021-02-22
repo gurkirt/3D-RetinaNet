@@ -499,10 +499,8 @@ class VideoDataset(tutils.data.Dataset):
         mask = np.zeros(self.SEQ_LEN, dtype=np.int)
         # indexs = []
         for i in range(self.SEQ_LEN):
-            if self.DATASET == 'ucf24':
-                img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num+1)
-            else:
-                img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num+1)
+            
+            img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num+1)
 
             img = Image.open(img_name).convert('RGB')
             images.append(img)

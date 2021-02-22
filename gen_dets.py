@@ -150,7 +150,7 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
                     det_boxes[0][0].append(cls_dets)
                     
                     
-                    save_name = '{:s}/{:08d}.pkl'.format(save_dir, frame_num+1)
+                    save_name = '{:s}/{:05d}.pkl'.format(save_dir, frame_num+1)
                     frame_num += step_size
                     save_data = {'ego':ego_preds[b,s,:], 'main':save_data}
                     if s<seq_len-args.skip_ending or store_last:

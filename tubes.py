@@ -138,7 +138,7 @@ def perform_building(args, video_list, epoch):
             live_paths = []
             dead_paths = []
             for frame_num in sorted(frame_ids):
-                save_name = '{:s}/{:08d}.pkl'.format(video_dir, frame_num)
+                save_name = '{:s}/{:05d}.pkl'.format(video_dir, frame_num)
                 with open(save_name, 'rb') as f:
                     det_boxes = pickle.load(f)
                 
