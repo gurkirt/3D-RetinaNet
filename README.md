@@ -218,13 +218,33 @@ Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights use
 
 ##### Download pre-trained weights
 - Currently, we provide the models from above table: 
-    * trained weights are available from my [Google Drive](https://drive.google.com/drive/folders/1yrzf1VKscOlysXxKDh4N_6uRvt8-dxa-?usp=sharing)   
+    * trained weights are available from my [Google Drive](https://drive.google.com/drive/folders/1tOwQtQD3HWiTTp_ZgPCEWd4W-UKiglbt?usp=sharing)   
 - These models can be used to reproduce above table which is almost same as in our [paper](#) 
 
 ## Citation
-If this work has been helpful in your research please consider citing [1] and [4]
+If this work has been helpful in your research please cite following articles:
 
-    coming soon ........
+  Citation-bibtex to ROAD paper coming soon ........
+
+  @inproceedings{singh2017online,
+    title={Online real-time multiple spatiotemporal action localisation and prediction},
+    author={Singh, Gurkirt and Saha, Suman and Sapienza, Michael and Torr, Philip HS and Cuzzolin, Fabio},
+    booktitle={Proceedings of the IEEE International Conference on Computer Vision},
+    pages={3637--3646},
+    year={2017}
+  }
+
+  @article{maddern20171,
+    title={1 year, 1000 km: The Oxford RobotCar dataset},
+    author={Maddern, Will and Pascoe, Geoffrey and Linegar, Chris and Newman, Paul},
+    journal={The International Journal of Robotics Research},
+    volume={36},
+    number={1},
+    pages={3--15},
+    year={2017},
+    publisher={SAGE Publications Sage UK: London, England}
+  }
+
 
 ## References
 - [1] G. Singh, S Saha, M. Sapienza, P. H. S. Torr and F Cuzzolin. Online Real time Multiple Spatiotemporal Action Localisation and Prediction. ICCV, 2017. It is used for tube linking and trimming.
