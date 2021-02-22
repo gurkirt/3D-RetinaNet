@@ -116,7 +116,7 @@ Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights use
   </tr>
   <tr>
     <td align="left">Agentness</td> 
-    <td>54.7</td>
+    <td>54.7/--</td>
     <!-- <td>32.07</td>
     <td>00.85</td> 
     <td>07.26</td>
@@ -170,7 +170,7 @@ Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights use
   </tr>
   <tr>
     <td align="left">AV-action</td> 
-    <td>44.8</td>
+    <td>44.8/--</td>
     <!-- <td>15.86</td>
     <td>00.20</td>
     <td>03.66</td>
