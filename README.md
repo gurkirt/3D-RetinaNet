@@ -224,26 +224,26 @@ Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights use
 ## Citation
 If this work has been helpful in your research please cite following articles:
 
-  Citation-bibtex to ROAD paper coming soon ........
+    Citation-bibtex to ROAD paper coming soon ........
 
-  @inproceedings{singh2017online,
-    title={Online real-time multiple spatiotemporal action localisation and prediction},
-    author={Singh, Gurkirt and Saha, Suman and Sapienza, Michael and Torr, Philip HS and Cuzzolin, Fabio},
-    booktitle={Proceedings of the IEEE International Conference on Computer Vision},
-    pages={3637--3646},
-    year={2017}
-  }
+    @inproceedings{singh2017online,
+      title={Online real-time multiple spatiotemporal action localisation and prediction},
+      author={Singh, Gurkirt and Saha, Suman and Sapienza, Michael and Torr, Philip HS and Cuzzolin, Fabio},
+      booktitle={Proceedings of the IEEE International Conference on Computer Vision},
+      pages={3637--3646},
+      year={2017}
+    }
 
-  @article{maddern20171,
-    title={1 year, 1000 km: The Oxford RobotCar dataset},
-    author={Maddern, Will and Pascoe, Geoffrey and Linegar, Chris and Newman, Paul},
-    journal={The International Journal of Robotics Research},
-    volume={36},
-    number={1},
-    pages={3--15},
-    year={2017},
-    publisher={SAGE Publications Sage UK: London, England}
-  }
+    @article{maddern20171,
+      title={1 year, 1000 km: The Oxford RobotCar dataset},
+      author={Maddern, Will and Pascoe, Geoffrey and Linegar, Chris and Newman, Paul},
+      journal={The International Journal of Robotics Research},
+      volume={36},
+      number={1},
+      pages={3--15},
+      year={2017},
+      publisher={SAGE Publications Sage UK: London, England}
+    }
 
 
 ## References
