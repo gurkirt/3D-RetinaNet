@@ -105,19 +105,19 @@ def main():
                         type=float, help='Max threshold Jaccard index for matching')
     # Evaluation hyperparameters
     parser.add_argument('--EVAL_EPOCHS', default='30', 
-                        type=str, help='eval epoch')
+                        type=str, help='eval epochs to test network on these epoch checkpoints usually the last epoch is used')
     parser.add_argument('--VAL_STEP', default=2, 
                         type=int, help='Number of training epoch before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
-                        type=float, help='Evaluation threshold')
+                        type=float, help='Evaluation threshold for validation and for frame-wise mAP')
     parser.add_argument('--CONF_THRESH', default=0.025, 
-                        type=float, help='Confidence threshold for evaluation')
+                        type=float, help='Confidence threshold for to remove detection below given number')
     parser.add_argument('--NMS_THRESH', default=0.5, 
-                        type=float, help='NMS threshold')
+                        type=float, help='NMS threshold to apply nms at the time of validation')
     parser.add_argument('--TOPK', default=10, 
-                        type=int, help='topk for evaluation')
+                        type=int, help='topk detection to keep for evaluation')
     parser.add_argument('--GEN_CONF_THRESH', default=0.025, 
-                        type=float, help='Confidence threshold at the time of generation')
+                        type=float, help='Confidence threshold at the time of generation and dumping')
     parser.add_argument('--GEN_TOPK', default=100, 
                         type=int, help='topk at the time of generation')
     parser.add_argument('--GEN_NMS', default=0.5, 
@@ -129,35 +129,36 @@ def main():
     
     ## paths hyper parameters
     parser.add_argument('--COMPUTE_PATHS', default=False, 
-                        type=str2bool, help=' COMPUTE_PATHS')
+                        type=str2bool, help=' COMPUTE_PATHS if set true then it overwrite existing ones')
     parser.add_argument('--PATHS_IOUTH', default=0.5,
-                        type=float, help='Iouth for building paths')
+                        type=float, help='Iou threshold for building paths to limit neighborhood search')
     parser.add_argument('--PATHS_COST_TYPE', default='score',
-                        type=str, help='eval PATHS_IOUTH')
+                        type=str, help='cost function type to use for matching, other options are scoreiou, iou')
     parser.add_argument('--PATHS_JUMP_GAP', default=4,
-                        type=int, help='eval PATHS_JUMP_GAP')
+                        type=int, help='GAP allowed for a tube to be kept alive after no matching detection found')
     parser.add_argument('--PATHS_MIN_LEN', default=6,
-                        type=int, help='eval PATHS_MIN_LEN')
+                        type=int, help='minimum length of generated path')
     parser.add_argument('--PATHS_MINSCORE', default=0.1,
-                        type=float, help='eval PATHS_MINSCORE')
+                        type=float, help='minimum score a path should have over its length')
     
     ## paths hyper parameters
-    parser.add_argument('--COMPUTE_TUBES', default=False, type=str2bool, help='eval COMPUTE_TUBES')
+    parser.add_argument('--COMPUTE_TUBES', default=False, type=str2bool, help='if set true then it overwrite existing tubes')
     parser.add_argument('--TUBES_ALPHA', default=0,
-                        type=float, help='eval TUBES_ALPHA')
+                        type=float, help='alpha cost for changeing the label')
     parser.add_argument('--TRIM_METHOD', default='none',
-                        type=str, help='eval TUBES_ALPHA')
+                        type=str, help='other one is indiv which works for UCF24')
     parser.add_argument('--TUBES_TOPK', default=10,
-                        type=int, help='eval TUBES_TOPK')
+                        type=int, help='Number of labels to assign for a tube')
     parser.add_argument('--TUBES_MINLEN', default=5,
-                        type=int, help='eval TUBES_TOPK')
+                        type=int, help='minimum length of a tube')
     parser.add_argument('--TUBES_EVAL_THRESHS', default='0.2,0.5',
-                        type=str, help='eval TUBES_Thtrshold at evaluation time')
+                        type=str, help='evaluation threshold for checking tube overlap at evaluation time, one can provide as many as one wants')
     # parser.add_argument('--TRAIL_ID', default=0,
     #                     type=int, help='eval TUBES_Thtrshold at evaluation time')
+    
+    ###
     parser.add_argument('--LOG_START', default=10, 
                         type=int, help='start loging after k steps for text/tensorboard') 
-                        # Let initial ripples settle down
     parser.add_argument('--LOG_STEP', default=10, 
                         type=int, help='Log every k steps for text/tensorboard')
     parser.add_argument('--TENSORBOARD', default=1,
