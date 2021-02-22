@@ -257,7 +257,7 @@ class VideoDataset(tutils.data.Dataset):
 
     def _make_lists_ucf24(self):
 
-        self.anno_file  = os.path.join(self.root, 'splitfiles/pyannot.pkl')
+        self.anno_file  = os.path.join(self.root, 'pyannot_with_class_names.pkl.pkl')
         
 
         with open(self.anno_file,'rb') as fff:
