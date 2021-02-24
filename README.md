@@ -1,5 +1,5 @@
 # 3D-RetinaNet for ROAD and UCF-24 dataset
-This repository contains code for 3D-RetinaNet, which is used a baseline for [ROAD dataset](https://github.com/gurkirt/road-dataset) in dataset release [paper](). It contains training and evaluation for ROAD and UCF-24 datasets. 
+This repository contains code for 3D-RetinaNet, which is used a baseline for [ROAD dataset](https://github.com/gurkirt/road-dataset) in dataset release [paper](https://arxiv.org/pdf/2102.11585.pdf). It contains training and evaluation for ROAD and UCF-24 datasets. 
 
 
 
@@ -19,7 +19,7 @@ We need three things to get started with training: datasets, kinetics pre-traine
 ### Dataset download an pre-process
 
 - We currently only support following two dataset.
-    - [ROAD dataset](https://github.com/gurkirt/road-dataset) in dataset release [paper]()
+    - [ROAD dataset](https://github.com/gurkirt/road-dataset) in dataset release [paper](https://arxiv.org/pdf/2102.11585.pdf)
     - [UCF24](http://www.thumos.info/download.html) with [revised annotations](https://github.com/gurkirt/corrected-UCF101-Annots) released with our [ICCV-2017 paper](https://arxiv.org/pdf/1611.08563.pdf).
 
 - Visit [ROAD dataset](https://github.com/gurkirt/road-dataset) for download and pre-processing. 
@@ -89,7 +89,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py /home/user/ /home/user/  /home/user/
 
 - Testing notes
   * Evaluation can be done on single GPU for test sequence length up to 32  
-  * No temporal trimming is performed for ROAD dataset however we use class specific alphas with temporal trimming formulation described in paper, which relies on temporal label consistency. 
+  * No temporal trimming is performed for ROAD dataset however we use class specific alphas with temporal trimming formulation described in [paper](https://arxiv.org/pdf/2102.11585.pdf), which relies on temporal label consistency. 
   * Please go through the hypermeter in `main.py` to understand there functions.
   * After performing tubes a detection `.json` file is dumped, which is used for evaluation, see `tubes.py` for more detatils.
   * See `modules\evaluation.py` and `data\dataset.py` for frame-level and video-level evaluation code to compute `frame-mAP` and `video-mAP`.
@@ -97,7 +97,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py /home/user/ /home/user/  /home/user/
 
 ## Performance
 
-Here, you find the reproduced  results from our paper. We use training split #3 for reproduction on a different machines compared to where results were generated for the paper. Below you will find the test results on validation split #3, which closer to test set compared to other split in terms of environmental conditions.
+Here, you find the reproduced  results from our [paper](https://arxiv.org/pdf/2102.11585.pdf). We use training split #3 for reproduction on a different machines compared to where results were generated for the paper. Below you will find the test results on validation split #3, which closer to test set compared to other split in terms of environmental conditions.
 We there is little change in learning rate here, so results are little different than the paper. Also, there are six tasks in ROAD dataset that makes it difficult balance the learning among tasks.
 
 Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights used for `resnet50I3D`, download link to given above in <a href=#requirements> Requirements section</a>. Results on split #3 with test-sequence length being 8 `<frame-AP@0.5>/<video-mAP@0.2>`. 
@@ -219,12 +219,19 @@ Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights use
 ##### Download pre-trained weights
 - Currently, we provide the models from above table: 
     * trained weights are available from my [Google Drive](https://drive.google.com/drive/folders/1tOwQtQD3HWiTTp_ZgPCEWd4W-UKiglbt?usp=sharing)   
-- These models can be used to reproduce above table which is almost same as in our [paper](#) 
+- These models can be used to reproduce above table which is almost same as in our [paper](https://arxiv.org/pdf/2102.11585.pdf) 
 
 ## Citation
 If this work has been helpful in your research please cite following articles:
 
-    Citation-bibtex to ROAD paper coming soon ........
+    @misc{singh2021road,
+      title={ROAD: The ROad event Awareness Dataset for Autonomous Driving}, 
+      author={Gurkirt Singh and Stephen Akrigg and Manuele Di Maio and Valentina Fontana and Reza Javanmard Alitappeh and Suman Saha and Kossar Jeddisaravi and Farzad Yousefi and Jacob Culley and Tom Nicholson and Jordan Omokeowa and Salman Khan and Stanislao Grazioso and Andrew Bradley and Giuseppe Di Gironimo and Fabio Cuzzolin},
+      year={2021},
+      eprint={2102.11585},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+    }
 
     @inproceedings{singh2017online,
       title={Online real-time multiple spatiotemporal action localisation and prediction},
