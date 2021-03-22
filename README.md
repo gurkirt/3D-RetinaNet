@@ -78,14 +78,14 @@ There are various `MODEs` in `main.py`. You can do each step independently or to
 For ROAD dataset, run the following commands.
 
 ```
-python main.py /home/user/ /home/user/  /home/user/kinetics-pt/ pretrained_models/kinetics-pt --MODE=gen-dets --MODEL_TYPE=I3D --TEST_SEQ_LEN=8 --TRAIN_SUBSETS=train_3 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.0041 
+python main.py /home/user/ /home/user/  /home/user/kinetics-pt/ --MODE=gen_dets --MODEL_TYPE=I3D --TEST_SEQ_LEN=8 --TRAIN_SUBSETS=train_3 --SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.0041 
 ```
 
 and for UCF24
 
 
 ```
-CUDA_VISIBLE_DEVICES=0,1,2,3 python main.py /home/user/ /home/user/  /home/user/kinetics-pt/ --MODE=gen-dets --ARCH=resnet50 --MODEL_TYPE=I3D --DATASET=ucf24 --TRAIN_SUBSETS=train --VAL_SUBSETS=val --SEQ_LEN=8 --TEST_SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245 --EVAL_EPOCHS=10 --GEN_NMS=80 --TOPK=20 --PATHS_IOUTH=0.25 --TRIM_METHOD=indiv
+python main.py /home/user/ /home/user/  /home/user/kinetics-pt/ --MODE=gen_dets --ARCH=resnet50 --MODEL_TYPE=I3D --DATASET=ucf24 --TRAIN_SUBSETS=train --VAL_SUBSETS=val --SEQ_LEN=8 --TEST_SEQ_LEN=8 --BATCH_SIZE=4 --LR=0.00245 --EVAL_EPOCHS=10 --GEN_NMS=80 --TOPK=20 --PATHS_IOUTH=0.25 --TRIM_METHOD=indiv
 ```
 
 - Testing notes
