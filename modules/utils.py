@@ -71,7 +71,10 @@ def copy_source(source_dir):
     for dirpath, dirs, files in os.walk('./', topdown=True):
         for file in files:
             if file.endswith('.py'): #fnmatch.filter(files, filepattern):
-                shutil.copy2(os.path.join(dirpath, file), source_dir)
+                try:
+                    shutil.copy2(os.path.join(dirpath, file), source_dir)
+                except shutil.SameFileError:
+                    continue
 
 
 def set_args(args):
