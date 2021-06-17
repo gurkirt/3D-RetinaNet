@@ -1,13 +1,13 @@
 
 import time
 import os
-import datetime
 import torch
 import math
 
 import torch.utils.data as data_utils
 from modules import  AverageMeter
 from data import custum_collate
+from datetime import datetime
 from modules.solver import get_optim
 from val import validate
 from modules import utils
@@ -38,7 +38,7 @@ def train(args, net, train_dataset, val_dataset):
         optimizer.load_state_dict(torch.load(optimizer_file_name))
         
     if args.TENSORBOARD:
-        log_dir = '{:s}/tboard-{}-{date:%m-%d-%Hx}'.format(args.log_dir, args.MODE, date=datetime.datetime.now())
+        log_dir = '{:s}/tboard-{}-{}'.format(args.log_dir, args.MODE, datetime.now().astimezone().replace(microsecond=0).isoformat())
         args.sw = SummaryWriter(log_dir)
 
     logger.info(str(net))

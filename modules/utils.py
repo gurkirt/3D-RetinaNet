@@ -5,7 +5,7 @@ import getpass
 import copy
 import numpy as np
 from modules.box_utils import nms
-import datetime
+from datetime import datetime
 import logging 
 import torch
 
@@ -36,14 +36,11 @@ def setup_logger(args):
     """
     Sets up the logging.
     """
-    log_file_name = '{:s}/{:s}-{date:%m-%d-%Hx}.log'.format(args.SAVE_ROOT, args.MODE, date=datetime.datetime.now())
-    args.log_dir = 'logs/'+args.exp_name+'/'
+    log_file_name = '{:s}/{:s}-{}.log'.format(args.SAVE_ROOT, args.MODE, datetime.now().astimezone().replace(microsecond=0).isoformat())
+    args.log_dir = args.SAVE_ROOT
     if not os.path.isdir(args.log_dir):
         os.makedirs(args.log_dir)
         
-    added_log_file = '{}{}-{date:%m-%d-%Hx}.log'.format(args.log_dir, args.MODE, date=datetime.datetime.now())
-
-   
     # Set up logging format.
     _FORMAT = "[%(levelname)s: %(filename)s: %(lineno)4d]: %(message)s"
 
@@ -52,7 +49,6 @@ def setup_logger(args):
         level=logging.INFO, format=_FORMAT, stream=sys.stdout
     )
     logging.getLogger().addHandler(logging.FileHandler(log_file_name, mode='a'))
-    # logging.getLogger().addHandler(logging.FileHandler(added_log_file, mode='a'))
 
 
 def get_logger(name):
