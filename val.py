@@ -4,6 +4,7 @@
 This script contain valiudation code at the time of training
 
 """
+import os
 import time
 import torch
 import numpy as np
@@ -20,7 +21,7 @@ logger = utils.get_logger(__name__)
 def val(args, net, val_dataset):
     val_data_loader = data_utils.DataLoader(val_dataset, args.BATCH_SIZE, num_workers=args.NUM_WORKERS,
                                             shuffle=False, pin_memory=True, collate_fn=custum_collate)
-    args.MODEL_PATH = args.SAVE_ROOT + 'model_{:06d}.pth'.format(args.EVAL_EPOCHS[0])
+    args.MODEL_PATH = os.path.join(args.SAVE_ROOT, 'model_{:06d}.pth'.format(args.EVAL_EPOCHS[0]))
     logger.info('Loaded model from :: '+args.MODEL_PATH)
     net.load_state_dict(torch.load(args.MODEL_PATH))
     mAP, ap_all, ap_strs = validate(args, net,  val_data_loader, val_dataset, args.EVAL_EPOCHS[0])

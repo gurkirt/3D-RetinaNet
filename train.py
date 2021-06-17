@@ -21,7 +21,7 @@ def train(args, net, train_dataset, val_dataset):
     if args.TENSORBOARD:
         from tensorboardX import SummaryWriter
 
-    source_dir = args.SAVE_ROOT+'/source/' # where to save the source
+    source_dir = os.path.join(args.SAVE_ROOT, 'source') # where to save the source
     utils.copy_source(source_dir)
 
     args.START_EPOCH = 1
