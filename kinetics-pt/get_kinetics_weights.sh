@@ -9,3 +9,7 @@ wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&conf
 rm cookies.txt
 wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1YgeXZk45V7F2chSyRK-uNWrBF5BskdVj' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1YgeXZk45V7F2chSyRK-uNWrBF5BskdVj" -O resnet50RCGRU.pth
 rm cookies.txt
+wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1kQO_dnM9JjV3sBtvowXqQa6d0xcxn5rs' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1kQO_dnM9JjV3sBtvowXqQa6d0xcxn5rs" -O SLOWFAST_R50_K400.pth.tar
+rm cookies.txt
+wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1qDdAntE5Onh7btniftOL8MrbsD7OIqj4' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1qDdAntE5Onh7btniftOL8MrbsD7OIqj4" -O SLOWFAST_R101_K700.pth.tar
+rm cookies.txt
