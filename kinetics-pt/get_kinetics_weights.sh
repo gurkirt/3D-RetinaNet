@@ -5,3 +5,7 @@ wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&conf
 rm cookies.txt
 wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1ZpbvJzvnDxJmKCFTs9wKmmA2qvm2aFBX' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1ZpbvJzvnDxJmKCFTs9wKmmA2qvm2aFBX" -O resnet50I3D.pth
 rm cookies.txt
+wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1kHSu5PDd3LxkOFDL6dBGsxRySi7GVasi' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1kHSu5PDd3LxkOFDL6dBGsxRySi7GVasi" -O resnet50RCLSTM.pth
+rm cookies.txt
+wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1YgeXZk45V7F2chSyRK-uNWrBF5BskdVj' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1YgeXZk45V7F2chSyRK-uNWrBF5BskdVj" -O resnet50RCGRU.pth
+rm cookies.txt
