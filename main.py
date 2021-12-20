@@ -225,7 +225,7 @@ def main():
         full_test = True #args.MODE != 'train'
         args.skip_beggning = 0
         args.skip_ending = 0
-        if args.MODEL_TYPE == 'I3D':
+        if args.MODEL_TYPE == 'I3D' or 'SlowFast':
             args.skip_beggning = 2
             args.skip_ending = 2
         elif args.MODEL_TYPE != 'C2D':

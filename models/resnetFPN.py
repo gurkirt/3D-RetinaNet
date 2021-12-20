@@ -8,6 +8,12 @@ from models.blocks import *
 
 import modules.utils as lutils
 
+import yaml
+from easydict import EasyDict
+from .backbones import AVA_backbone
+
+
+
 logger = lutils.get_logger(__name__)
 
 ### Download weights from https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
@@ -24,8 +30,21 @@ def conv1x1(in_channel, out_channel):
 class ResNetFPN(nn.Module):
 
     def __init__(self, block, args):
+        
         self.inplanes = 64
         super(ResNetFPN, self).__init__()
+    
+    
+        if args.MODEL_TYPE.startswith('SlowFast'):
+            with open('configs/ROAD.yml') as f:
+                config = yaml.load(f, Loader=yaml.FullLoader)
+            opt = EasyDict(config)
+            print(opt)
+            self.inplanes = 64
+            super(ResNetFPN, self).__init__()
+            self.backbone = AVA_backbone(opt)
+    
+
         self.MODEL_TYPE = args.MODEL_TYPE
         num_blocks = args.model_perms
         non_local_inds = args.non_local_inds
@@ -60,19 +79,34 @@ class ResNetFPN(nn.Module):
         #self.avgpool = nn.AvgPool2d(7, stride=1)
         #self.fc = nn.Linear(512 * block.expansion, num_classes)
 
-        self.conv6 = conv3x3(512 * block.expansion, 256, stride=2, padding=1)  # P6
-        self.conv7 = conv3x3(256, 256, stride=2, padding=1)  # P7
+        if self.MODEL_TYPE == 'SlowFast':
+            self.conv6 = conv3x3(2304, 256, stride=2, padding=1)  # P6
+            self.conv7 = conv3x3(256, 256, stride=2, padding=1)  # P7
 
-        self.ego_lateral = conv3x3(512 * block.expansion,  256, stride=2, padding=0)
-        self.avg_pool = nn.AdaptiveAvgPool3d((None, 1, 1))
+            self.ego_lateral = conv3x3(512 * block.expansion,  256, stride=2, padding=0)
+            self.avg_pool = nn.AdaptiveAvgPool3d((None, 1, 1))
 
-        self.lateral_layer1 = conv1x1(512 * block.expansion, 256)
-        self.lateral_layer2 = conv1x1(256 * block.expansion, 256)
-        self.lateral_layer3 = conv1x1(128 * block.expansion, 256)
-        
-        self.corr_layer1 = conv3x3(256, 256, stride=1, padding=1)  # P4
-        self.corr_layer2 = conv3x3(256, 256, stride=1, padding=1)  # P4
-        self.corr_layer3 = conv3x3(256, 256, stride=1, padding=1)  # P3
+            self.lateral_layer1 = conv1x1(2304, 256)
+            self.lateral_layer2 = conv1x1(1152, 256)
+            self.lateral_layer3 = conv1x1(576, 256)
+            
+            self.corr_layer1 = conv3x3(256, 256, stride=1, padding=1)  # P4
+            self.corr_layer2 = conv3x3(256, 256, stride=1, padding=1)  # P4
+            self.corr_layer3 = conv3x3(256, 256, stride=1, padding=1)  # P3
+        else:
+            self.conv6 = conv3x3(512 * block.expansion, 256, stride=2, padding=1)  # P6
+            self.conv7 = conv3x3(256, 256, stride=2, padding=1)  # P7
+
+            self.ego_lateral = conv3x3(512 * block.expansion,  256, stride=2, padding=0)
+            self.avg_pool = nn.AdaptiveAvgPool3d((None, 1, 1))
+
+            self.lateral_layer1 = conv1x1(512 * block.expansion, 256)
+            self.lateral_layer2 = conv1x1(256 * block.expansion, 256)
+            self.lateral_layer3 = conv1x1(128 * block.expansion, 256)
+            
+            self.corr_layer1 = conv3x3(256, 256, stride=1, padding=1)  # P4
+            self.corr_layer2 = conv3x3(256, 256, stride=1, padding=1)  # P4
+            self.corr_layer3 = conv3x3(256, 256, stride=1, padding=1)  # P3
 
 
         for m in self.modules():
@@ -139,49 +173,59 @@ class ResNetFPN(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        # pdb.set_trace()
-        # print('input shape', x.shape)
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.pool1(x)
-        # print('p1 ', x.shape)
-        x = self.layer1(x)
-        if self.pool2 is not None:
-            x = self.pool2(x)
-        # print('p2 shape ', x.shape)
-        c3 = self.layer2(x)
-        c4 = self.layer3(c3)
-        c5 = self.layer4(c4)
 
-        # ego_feat = self.ego_lateral(c5)
-        # print(sources[-1].shape)
-        
-
-        p5 = self.lateral_layer1(c5)
-        p5_upsampled = self._upsample(p5, c4)
-        p5 = self.corr_layer1(p5)
-
-        p4 = self.lateral_layer2(c4)
-        p4 = p5_upsampled + p4
-        p4_upsampled = self._upsample(p4, c3)
-        p4 = self.corr_layer2(p4)
-
-        p3 = self.lateral_layer3(c3)
-        p3 = p4_upsampled + p3
-        p3 = self.corr_layer3(p3)
-
-        p6 = self.conv6(c5)
-        p7 = self.conv7(F.relu(p6))
-
-        features = [p3, p4, p5, p6, p7]
-        
-        ego_feat = self.avg_pool(p7)
-        if self.pool2 is not None:
-            for i in range(len(features)):
-                features[i] = self._upsample_time(features[i])
-            ego_feat = self._upsample_time(ego_feat)
-        
+        if self.MODEL_TYPE.startswith('SlowFast'):
+            ff = self.backbone(x)
+            c3 = ff[0]
+            c4 = ff[1]
+            c5 = ff[2]
+            p5 = self.lateral_layer1(c5)
+            p5_upsampled = self._upsample(p5, c4)
+            p5 = self.corr_layer1(p5)
+            p4 = self.lateral_layer2(c4)
+            p4 = p5_upsampled + p4
+            p4_upsampled = self._upsample(p4, c3)
+            p4 = self.corr_layer2(p4)
+            p3 = self.lateral_layer3(c3)
+            p3 = p4_upsampled + p3
+            p3 = self.corr_layer3(p3)
+            p6 = self.conv6(c5)
+            p7 = self.conv7(F.relu(p6))
+            features = [p3, p4, p5, p6, p7]
+            ego_feat = self.avg_pool(p7)
+            if self.pool2 is not None:
+                for i in range(len(features)):
+                    features[i] = self._upsample_time(features[i])
+                ego_feat = self._upsample_time(ego_feat)
+        else:
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu(x)
+            x = self.pool1(x)
+            x = self.layer1(x)
+            if self.pool2 is not None:
+                x = self.pool2(x)
+            c3 = self.layer2(x)
+            c4 = self.layer3(c3)
+            c5 = self.layer4(c4)
+            p5 = self.lateral_layer1(c5)
+            p5_upsampled = self._upsample(p5, c4)
+            p5 = self.corr_layer1(p5)
+            p4 = self.lateral_layer2(c4)
+            p4 = p5_upsampled + p4
+            p4_upsampled = self._upsample(p4, c3)
+            p4 = self.corr_layer2(p4)
+            p3 = self.lateral_layer3(c3)
+            p3 = p4_upsampled + p3
+            p3 = self.corr_layer3(p3)
+            p6 = self.conv6(c5)
+            p7 = self.conv7(F.relu(p6))
+            features = [p3, p4, p5, p6, p7]
+            ego_feat = self.avg_pool(p7)
+            if self.pool2 is not None:
+                for i in range(len(features)):
+                    features[i] = self._upsample_time(features[i])
+                ego_feat = self._upsample_time(ego_feat)
         return features, ego_feat
 
 
@@ -290,5 +334,7 @@ def resnetfpn(args):
         return ResNetFPN(BottleneckRCLSTM, args)
     elif model_type.startswith('RCGRU'):
         return ResNetFPN(BottleneckRCGRU, args)
+    elif model_type.startswith('SlowFast'):
+        return ResNetFPN(BottleneckI3D, args)
     else:
         raise RuntimeError('Define the model type correctly:: ' + model_type)

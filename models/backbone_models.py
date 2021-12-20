@@ -30,9 +30,8 @@ def backbone_models(args):
             model.identity_state_dict()
         if MODEL_TYPE.startswith('RCGRU') or MODEL_TYPE.startswith('RCLSTM'):
             model.recurrent_conv_zero_state()
-
-        load_dict = torch.load(args.MODEL_PATH)
-        
-        model.load_my_state_dict(load_dict)
+        if not MODEL_TYPE.startswith('SlowFast'):
+            load_dict = torch.load(args.MODEL_PATH)
+            model.load_my_state_dict(load_dict)
 
     return model
