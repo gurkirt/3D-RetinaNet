@@ -124,6 +124,11 @@ class SlowFast(nn.Module):
 
         return x_upsampled
 
+    def _upsample_time(self, x):
+        _,_,t, h, w = x.size()
+        # print('time', x.shape)
+        x_upsampled = F.interpolate(x, [t*2, h, w], mode='nearest')
+        return x_upsampled
 
     def forward(self, input):
         fast, Tc = self.FastPath(input)
@@ -145,10 +150,24 @@ class SlowFast(nn.Module):
         slow = self.SlowPath(slow_input, Tc)
 
         
-        fast[0] = self.pool2(fast[0])
-        fast[1] = self.pool2(fast[1])
-        fast[2] = self.pool2(fast[2])
+
+        # print('1-before',slow[0].shape)
+        # print('1-before',slow[1].shape)
+        # print('1-before',slow[2].shape)
+        # # fast[0] = self.pool2(fast[0])
+        # fast[1] = self.pool2(fast[1])
+        # fast[2] = self.pool2(fast[2])        
+
+        slow[0] = self._upsample_time(slow[0])
+        slow[1] = self._upsample_time(slow[1])
+        slow[2] = self._upsample_time(slow[2])
         
+
+        # print('1-fast',slow[0].shape)
+        # print('1-fast',slow[1].shape)
+        # print('1-fast',slow[2].shape)
+        # print(rr)
+
         outFeat = []
         for sitem,fitem in zip(slow,fast):
             outFeat.append(torch.cat((sitem,fitem),1))

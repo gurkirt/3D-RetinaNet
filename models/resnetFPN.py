@@ -130,7 +130,6 @@ class ResNetFPN(nn.Module):
         _,_,t, h, w = x.size()
         # print('time', x.shape)
         x_upsampled = F.interpolate(x, [t*2, h, w], mode='nearest')
-
         return x_upsampled
 
     def _make_layer(self, block, planes, num_blocks, stride=1, temp_kernals=[], nl_inds=[]):
@@ -194,8 +193,8 @@ class ResNetFPN(nn.Module):
             features = [p3, p4, p5, p6, p7]
             ego_feat = self.avg_pool(p7)
             if self.pool2 is not None:
-                for i in range(len(features)):
-                    features[i] = self._upsample_time(features[i])
+                # for i in range(len(features)):
+                #     features[i] = self._upsample_time(features[i])
                 ego_feat = self._upsample_time(ego_feat)
         else:
             x = self.conv1(x)
