@@ -192,10 +192,10 @@ class ResNetFPN(nn.Module):
             p7 = self.conv7(F.relu(p6))
             features = [p3, p4, p5, p6, p7]
             ego_feat = self.avg_pool(p7)
-            if self.pool2 is not None:
-                # for i in range(len(features)):
-                #     features[i] = self._upsample_time(features[i])
-                ego_feat = self._upsample_time(ego_feat)
+            # if self.pool2 is not None:
+            #     # for i in range(len(features)):
+            #     #     features[i] = self._upsample_time(features[i])
+            #     ego_feat = self._upsample_time(ego_feat)
         else:
             x = self.conv1(x)
             x = self.bn1(x)
