@@ -225,14 +225,22 @@ Model is set to `I3D` with `resnet50` backbone. Kinetics pre-trained weights use
 ## Citation
 If this work has been helpful in your research please cite following articles:
 
-    @misc{singh2021road,
-      title={ROAD: The ROad event Awareness Dataset for Autonomous Driving}, 
-      author={Gurkirt Singh and Stephen Akrigg and Manuele Di Maio and Valentina Fontana and Reza Javanmard Alitappeh and Suman Saha and Kossar Jeddisaravi and Farzad Yousefi and Jacob Culley and Tom Nicholson and Jordan Omokeowa and Salman Khan and Stanislao Grazioso and Andrew Bradley and Giuseppe Di Gironimo and Fabio Cuzzolin},
-      year={2021},
-      eprint={2102.11585},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
+    @ARTICLE {singh2022road,
+    author = {Singh, Gurkirt and Akrigg, Stephen and Di Maio, Manuele and Fontana, Valentina and Alitappeh, Reza Javanmard and Saha, Suman and Jeddisaravi, Kossar and Yousefi, Farzad and Culley, Jacob and Nicholson, Tom and others},
+    journal = {IEEE Transactions on Pattern Analysis & Machine Intelligence},
+    title = {ROAD: The ROad event Awareness Dataset for autonomous Driving},
+    year = {5555},
+    volume = {},
+    number = {01},
+    issn = {1939-3539},
+    pages = {1-1},
+    keywords = {roads;autonomous vehicles;task analysis;videos;benchmark testing;decision making;vehicle dynamics},
+    doi = {10.1109/TPAMI.2022.3150906},
+    publisher = {IEEE Computer Society},
+    address = {Los Alamitos, CA, USA},
+    month = {feb}
     }
+
 
     @inproceedings{singh2017online,
       title={Online real-time multiple spatiotemporal action localisation and prediction},
