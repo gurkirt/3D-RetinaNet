@@ -1,5 +1,5 @@
 # 3D-RetinaNet for ROAD and UCF-24 dataset
-This repository contains code for 3D-RetinaNet, which is used a baseline for [ROAD dataset](https://github.com/gurkirt/road-dataset) in dataset release [paper](https://arxiv.org/pdf/2102.11585.pdf). It contains training and evaluation for ROAD and UCF-24 datasets. 
+This repository contains code for 3D-RetinaNet, a novel Single-Stage action detection newtwork proposed along with [ROAD dataset](https://github.com/gurkirt/road-dataset).  Our [TPAMI paper](https://www.computer.org/csdl/journal/tp/5555/01/09712346/1AZL0P4dL1e) contain detailed description 3D-RetinaNet and ROAD dataset. This code contains training and evaluation for ROAD and UCF-24 datasets. 
 
 
 
