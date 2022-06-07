@@ -20,3 +20,5 @@ tempr_logs/
 tallied_results.txt
 extras/annots_12fps_full_v1.0.json
 *.tar
+### euler codes
+experiments/
