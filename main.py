@@ -23,7 +23,7 @@ def main():
     parser.add_argument('DATA_ROOT', help='Location to root directory for dataset reading') # /mnt/mars-fast/datasets/
     parser.add_argument('SAVE_ROOT', help='Location to root directory for saving checkpoint models') # /mnt/mars-alpha/
     parser.add_argument('MODEL_PATH',help='Location to root directory where kinetics pretrained models are stored')
-    
+    parser.add_argument('--ANNO_ROOT', default='', help='Location to directory where annotations are stored') # /mnt/mars-fast/datasets/
     parser.add_argument('--MODE', default='train',
                         help='MODE can be train, gen_dets, eval_frames, eval_tubes define SUBSETS accordingly, build tubes')
     # Name of backbone network, e.g. resnet18, resnet34, resnet50, resnet101 resnet152 are supported
@@ -72,7 +72,7 @@ def main():
     parser.add_argument('--TEST_BATCH_SIZE', default=1, 
                         type=int, help='Batch size for testing')
     # Number of worker to load data in parllel
-    parser.add_argument('--NUM_WORKERS', '-j', default=8, 
+    parser.add_argument('--NUM_WORKERS', '-j', default=0, 
                         type=int, help='Number of workers used in dataloading')
     # optimiser hyperparameters
     parser.add_argument('--OPTIM', default='SGD', 
@@ -106,7 +106,7 @@ def main():
     # Evaluation hyperparameters
     parser.add_argument('--EVAL_EPOCHS', default='30', 
                         type=str, help='eval epochs to test network on these epoch checkpoints usually the last epoch is used')
-    parser.add_argument('--VAL_STEP', default=2, 
+    parser.add_argument('--VAL_STEP', default=1, 
                         type=int, help='Number of training epoch before evaluation')
     parser.add_argument('--IOU_THRESH', default=0.5, 
                         type=float, help='Evaluation threshold for validation and for frame-wise mAP')
@@ -207,6 +207,7 @@ def main():
         # train_skip_step = args.SEQ_LEN
         # if args.SEQ_LEN>4 and args.SEQ_LEN<=10:
         #     train_skip_step = args.SEQ_LEN-2
+
         if args.SEQ_LEN>10:
             train_skip_step = args.SEQ_LEN + (args.MAX_SEQ_STEP - 1) * 2 - 2
         else:
@@ -272,9 +273,9 @@ def main():
     elif args.MODE == 'val':
         val(args, net, val_dataset)
     elif args.MODE == 'gen_dets':
-        gen_dets(args, net, val_dataset)
+        # gen_dets(args, net, val_dataset)
         eval_framewise_dets(args, val_dataset)
-        build_eval_tubes(args, val_dataset)
+        # build_eval_tubes(args, val_dataset)
     elif args.MODE == 'eval_frames':
         eval_framewise_dets(args, val_dataset)
     elif args.MODE == 'eval_tubes':

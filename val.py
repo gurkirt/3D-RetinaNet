@@ -62,7 +62,13 @@ def validate(args, net,  val_data_loader, val_dataset, iteration_num):
     net.eval()
     with torch.no_grad():
         for val_itr, (images, gt_boxes, gt_targets, ego_labels, batch_counts, img_indexs, wh) in enumerate(val_data_loader):
-
+            
+            
+            # if args.DATASET == 'ava':
+            #     id_infos = []
+            #     for ind in img_indexs:
+            #         id_infos(val_data_loader.ids[ind])
+                    
             torch.cuda.synchronize()
             t1 = time.perf_counter()
 
@@ -81,7 +87,14 @@ def validate(args, net,  val_data_loader, val_dataset, iteration_num):
             
             seq_len = gt_targets.size(1)
             for b in range(batch_size):
+                
+                # if args.DATASET == 'ava':
+                #     video_id, start_frame, step_size, keyframe = id_infos[b]
+
                 for s in range(seq_len):
+                    if args.DATASET == 'ava' and batch_counts[b, s]<1:
+                        continue
+
                     if ego_labels[b,s]>-1:
                         ego_pds.append(ego_preds[b,s,:])
                         ego_gts.append(ego_labels[b,s])

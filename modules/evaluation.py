@@ -3,7 +3,7 @@
 Author:: Gurkirt Singh
 
 '''
-
+import copy
 import os
 import json
 import time
@@ -11,8 +11,8 @@ import pdb
 import pickle
 import numpy as np
 import scipy.io as io  # to save detection as mat files
-from data.datasets import is_part_of_subsets, get_filtered_tubes, get_filtered_frames, filter_labels
-from data.datasets import get_frame_level_annos_ucf24, get_filtered_tubes_ucf24
+from data.datasets import is_part_of_subsets, get_filtered_tubes, get_filtered_frames, filter_labels, read_ava_annotations
+from data.datasets import get_frame_level_annos_ucf24, get_filtered_tubes_ucf24, read_labelmap
 from modules.tube_helper import get_tube_3Diou, make_det_tube
 from modules import utils
 logger = utils.get_logger(__name__)
@@ -147,8 +147,10 @@ def evaluate_detections(gt_boxes, det_boxes, classes=[], iou_thresh=0.5):
                         istp[det_count] = 1
                         #  to 1 if it is true postive example
                     det_count += 1
+        
         if num_postives < 1:
             num_postives = 1
+
         scores = scores[:det_count]
         istp = istp[:det_count]
         argsort_scores = np.argsort(-scores)  # sort in descending order
@@ -168,7 +170,7 @@ def evaluate_detections(gt_boxes, det_boxes, classes=[], iou_thresh=0.5):
         ap_strs.append(ap_str)
 
     mAP = np.mean(ap_all)
-    logger.info('mean ap '+ str(mAP))
+    logger.info('Mean ap '+ str(mAP))
     return mAP, ap_all, ap_strs
 
 
@@ -206,6 +208,10 @@ def evaluate_ego(gts, dets, classes):
     ap_strs = []
     num_frames = gts.shape[0]
     logger.info('Evaluating for ' + str(num_frames) + ' frames')
+    
+    if num_frames<1:
+        return 0, [0, 0], ['no gts present','no gts present']
+
     ap_all = []
     sap = 0.0
     for cls_ind, class_name in enumerate(classes):
@@ -406,6 +412,7 @@ def evaluate_tubes(anno_file, det_file,  subset='val_3', dataset='road', iou_thr
     return results
 
 
+
 def get_gt_frames_ucf24(final_annots, label_type):
     """Get video list form ground truth videos used in subset 
     and their ground truth frames """
@@ -431,6 +438,55 @@ def get_gt_frames_ucf24(final_annots, label_type):
     return frames
 
 
+def get_gt_frames_ava(final_annots, label_type):
+    """Get video list form ground truth videos used in subset 
+    and their ground truth frames """
+
+    assert label_type in ['action_ness', 'actions'], 'only valid for action classes not for actionness but TODO: should be easy to incorprate just add to eval_framewise_ego_actions_ucf24 as preds are same but gt in this format {}'.format(label_type)
+
+    frames = {}
+    # trainvideos = final_annots['trainvideos']
+    # labels = final_annots['classes']
+    # labels = ['action_ness'] + final_annots['classes']
+    # num_classes = len(labels)
+    # database = final_annots['db']
+    for videoname in final_annots:
+        # class_ids_map
+        for ts in final_annots[videoname]:
+            boxes = {}
+            time_stamp = int(ts)
+            frame_num = int((time_stamp - 900) * 30 + 1)
+            frame_name = '{:05d}'.format(frame_num)
+            if ts in final_annots[videoname]:
+                # assert time_stamp == int(annotations[ts][0][0])
+                for anno in final_annots[videoname][ts]:
+                    box_key = '_'.join('{:0.3f}'.format(b) for b in anno[1])
+                    box = copy.deepcopy(anno[1])
+                    for bi in range(4):
+                        assert 0<=box[bi]<=1.01, box
+                        box[bi] = min(1.0, max(0, box[bi]))
+                        box[bi] = box[bi]*682 if bi % 2 == 0 else box[bi]*512
+                    
+                    box = np.asarray(box)
+
+                    assert 80>=anno[2]>=1, 'label should be between 1 and 80 but it is {} '.format(anno[2])
+
+                    if box_key not in boxes:
+                        boxes[box_key] = {'box':box, 'labels':[]}
+                    if label_type == 'action_ness':
+                        boxes[box_key]['labels'].append(0)
+                    else:
+                        boxes[box_key]['labels'].append(anno[2])
+                    
+                    
+                all_boxes = []
+                for box_key in boxes:
+                    all_boxes.append([boxes[box_key]['box'], boxes[box_key]['labels']])
+                frames[videoname+frame_name] = all_boxes
+
+    return frames
+
+
 def get_gt_frames(final_annots, subsets, label_type, dataset):
     """Get video list form ground truth videos used in subset 
     and their ground truth frames """
@@ -444,8 +500,10 @@ def get_gt_frames(final_annots, subsets, label_type, dataset):
                 # video_list.append(videoname)
                 frames = get_filtered_frames(
                     label_type, final_annots, videoname, frames)
-    else:
+    elif dataset == 'ucf24':
         return get_gt_frames_ucf24(final_annots, label_type)
+    else:
+        return get_gt_frames_ava(final_annots, label_type)
     
     return frames
 
@@ -527,6 +585,7 @@ def eval_framewise_ego_actions_ucf24(final_annots, detections, subsets):
 
     gts = np.asarray(filtered_gts)
     preds = np.asarray(filtered_preds)
+    
     return evaluate_ego(gts, preds, labels)
 
 
@@ -545,9 +604,13 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='road')
     if dataset == 'road':
         with open(anno_file, 'r') as fff:
             final_annots = json.load(fff)
-    else:
+    elif dataset == 'ucf24':
         with open(anno_file, 'rb') as fff:
             final_annots = pickle.load(fff)
+    elif dataset == 'ava':
+        final_annots = read_ava_annotations(anno_file)
+        labelmap_file = os.path.join(os. path. dirname(anno_file), 'ava_actions.pbtxt')
+        class_names_ava, class_ids_map, label_map = read_labelmap(labelmap_file)
 
     with open(det_file, 'rb') as fff:
         detections = pickle.load(fff)
@@ -555,8 +618,13 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='road')
     results = {}
     if dataset == 'road':
         label_types = ['av_actions'] + ['agent_ness'] + final_annots['label_types']
-    else:
+    elif dataset == 'ucf24':
         label_types = ['frame_actions', 'action_ness', 'action']
+    elif dataset == 'ava':
+        label_types = ['action_ness', 'actions']
+    else:
+        raise Exception('Define data type prpperly follwong is not in the list ::: '+dataset)
+
     t1 = time.perf_counter()
     logger.info('Time taken to load for evaluation {}'.format(t1-t0))
     for nlt, label_type in enumerate(label_types):
@@ -578,8 +646,10 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='road')
                 classes = ['agent_ness']
             elif label_type == 'action_ness':
                 classes = ['action_ness']
+            elif dataset == 'ava':
+                classes = class_names_ava
             elif dataset != 'road':
-                classes = final_annots['classes']
+                classes = final_annots['classes'] ## valid for ucf24
             else:
                 classes = final_annots[label_type+'_labels']
             
@@ -587,7 +657,11 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='road')
                 t1 = time.perf_counter()
                 # print(cl_id, class_name, label_type)
                 ## gather gt of class "class_name" from frames which are not marked igonre
-                class_gts = get_gt_class_frames(gt_frames, cl_id)
+                if dataset == 'ava' and label_type != 'action_ness':
+                    class_gts = get_gt_class_frames(gt_frames, label_map[class_name]['org_id'])
+                else:
+                    class_gts = get_gt_class_frames(gt_frames, cl_id)
+
                 t2 = time.perf_counter()
 
                 frame_ids = [f for f in class_gts.keys()]
@@ -606,13 +680,13 @@ def evaluate_frames(anno_file, det_file, subset, iou_thresh=0.5, dataset='road')
                     ' : ' + str(recall)
                 ap_strs.append(ap_str)
                 t4 = time.perf_counter()
-                # logger.info('Time taken for GT {} DET {} EVAL {} in class {} \n{}'.format(t2-t1, t3-t2, t4-t3, class_name, ap_str))
+
 
             mAP = sap/len(classes)
         mean_recall = np.mean(np.asarray(re_all))
         ap_strs.append('\nMean AP:: {:0.2f} mean Recall {:0.2f}'.format(mAP,mean_recall))
         results[label_type] = {'mAP':mAP, 'ap_all':ap_all, 'ap_strs':ap_strs, 'recalls':re_all, 'mR':mean_recall}
-        logger.info('MAP:: {}'.format(mAP))
+        logger.info('{} MAP:: {}'.format(label_type, mAP))
     t1 = time.perf_counter()
     logger.info('Time taken to complete evaluation {}'.format(t1-t0))
     return results

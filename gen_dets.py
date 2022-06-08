@@ -105,7 +105,7 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
 
             torch.cuda.synchronize()
             t1 = time.perf_counter()
-
+            
             batch_size = images.size(0)
             
             images = images.cuda(0, non_blocking=True)
@@ -123,7 +123,14 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
             for b in range(batch_size):
                 index = img_indexs[b]
                 annot_info = val_dataset.ids[index]
-                video_id, frame_num, step_size = annot_info
+                if args.DATASET != 'ava':
+                    video_id, frame_num, step_size = annot_info
+                else:
+                    video_id, frame_num, step_size, keyframe = annot_info
+                    startf = frame_num
+                    temp_startf = frame_num
+                    frame_num = keyframe-1
+
                 videoname = val_dataset.video_list[video_id]
                 save_dir = '{:s}/{}'.format(args.det_save_dir, videoname)
                 store_last = False
@@ -134,28 +141,38 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
                 if not os.path.isdir(save_dir):
                     os.makedirs(save_dir)
                 count += 1
-                for s in range(seq_len):
-                    if ego_labels[b,s]>-1:
-                        ego_pds.append(ego_preds[b,s,:])
-                        ego_gts.append(ego_labels[b,s])
+                
+                
+                
+                for si in range(seq_len):
+                    if args.DATASET == 'ava' and startf != keyframe:
+                        startf += step_size
+                        continue
                     
-                    gt_boxes_batch = gt_boxes[b, s, :batch_counts[b, s],:].numpy()
-                    gt_labels_batch =  gt_targets[b, s, :batch_counts[b, s]].numpy()
-                    decoded_boxes_batch = decoded_boxes[b,s]
+                    if ego_labels[b,si]>-1:
+                        ego_pds.append(ego_preds[b,si,:])
+                        ego_gts.append(ego_labels[b,si])
+                    
+                    gt_boxes_batch = gt_boxes[b, si, :batch_counts[b, si],:].numpy()
+                    gt_labels_batch =  gt_targets[b, si, :batch_counts[b, si]].numpy()
+                    decoded_boxes_batch = decoded_boxes[b,si]
                     frame_gt = utils.get_individual_labels(gt_boxes_batch, gt_labels_batch[:,:1])
                     gt_boxes_all[0].append(frame_gt)
-                    confidence_batch = confidence[b,s]
+                    confidence_batch = confidence[b,si]
                     scores = confidence_batch[:, 0].squeeze().clone()
                     cls_dets, save_data = utils.filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidence_batch)
                     det_boxes[0][0].append(cls_dets)
-                    
-                    
+                    # print('number of samples', batch_counts[b, si].sum())
+                    # pdb.set_trace()
                     save_name = '{:s}/{:05d}.pkl'.format(save_dir, frame_num+1)
                     frame_num += step_size
-                    save_data = {'ego':ego_preds[b,s,:], 'main':save_data}
-                    if s<seq_len-args.skip_ending or store_last:
+                    save_data = {'ego':ego_preds[b,si,:], 'main':save_data}
+                    
+                    if si<seq_len-args.skip_ending or store_last:
                         with open(save_name,'wb') as ff:
                             pickle.dump(save_data, ff)
+                    
+                    startf += step_size
 
             if print_time and val_itr%val_step == 0:
                 torch.cuda.synchronize()
@@ -259,7 +276,7 @@ def eval_framewise_dets(args, val_dataset):
             args.det_file_name = "{pt:s}/frame-level-dets-{it:02d}-{sq:02d}-{n:d}-j4m.pkl".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN, n=int(100*args.GEN_NMS))
             result_file = "{pt:s}/frame-ap-results-{it:02d}-{sq:02d}-{n:d}-j4m.json".format(pt=args.SAVE_ROOT, it=epoch, sq=args.TEST_SEQ_LEN,n=int(100*args.GEN_NMS))
         
-        doeval = False
+        doeval = True
         if not os.path.isfile(args.det_file_name):
             logger.info('Gathering detection for ' + args.det_file_name)
             gather_framelevel_detection(args, val_dataset)
@@ -270,8 +287,11 @@ def eval_framewise_dets(args, val_dataset):
         
         if args.DATASET == 'road':
             label_types =  args.label_types + ['av_actions']
-        else:
+        elif args.DATASET == 'ucf24':
             label_types = args.label_types + ['frame_actions']
+        else:
+            label_types = args.label_types
+
 
         if doeval or not os.path.isfile(result_file):
             results = {}

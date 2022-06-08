@@ -25,6 +25,80 @@ from random import shuffle
 logger = utils.get_logger(__name__)
 
 
+def make_box_anno(llist):
+    box = [llist[2], llist[3], llist[4], llist[5]]
+    return [float(b) for b in box]
+
+
+def read_ava_annotations(anno_file):
+    # print(anno_file)
+    lines = open(anno_file, 'r').readlines()
+    annotations = {}
+    is_train = anno_file.find('train') > -1
+
+    cc = 0
+    for line in lines:
+        cc += 1
+        # if cc>500:
+        #     break
+        line = line.rstrip('\n')
+        line_list = line.split(',')
+        # print(line_list)
+        video_name = line_list[0]
+        if video_name not in annotations:
+            annotations[video_name] = {}
+        time_stamp = float(line_list[1])
+        # print(line_list)
+        numf = float(line_list[7]) ## or score
+        ts = str(int(time_stamp))
+        if len(line_list) > 2:
+            box = make_box_anno(line_list)
+            label = int(line_list[6])
+            if ts not in annotations[video_name]:
+                annotations[video_name][ts] = [[time_stamp, box, label, numf]]
+            else:
+                annotations[video_name][ts] += [[time_stamp, box, label, numf]]
+        elif not is_train:
+            if video_name not in annotations:
+                annotations[video_name][ts] = [[time_stamp, None, None, numf]]
+            else:
+                annotations[video_name][ts] += [[time_stamp, None, None, numf]]
+
+    # for video_name in annotations:
+        # print(video_name)
+    return annotations
+
+
+
+def read_labelmap(labelmap_file):
+    """Read label map and class ids."""
+
+    labelmap = {}
+    class_ids_map = {}
+    name = ""
+    class_id = ""
+    class_names = []
+    print('load label map from ', labelmap_file)
+    count = 0
+    with open(labelmap_file, "r") as f:
+        for line in f:
+            # print(line)
+            if line.startswith("  name:"):
+                name = line.split('"')[1]
+            elif line.startswith("  id:") or line.startswith("  label_id:"):
+                class_id = int(line.strip().split(" ")[-1])
+                labelmap[name] = {'org_id':class_id, 'used_id': count}
+                class_ids_map[class_id] = {'used_id':count, 'clsname': name}
+                count += 1
+                # print(class_id, name)
+                class_names.append(name)
+    
+    # class_names[0]
+    print('NUmber of classes are ', count)
+
+    return class_names, class_ids_map, labelmap
+
+
 def get_box(box, counts):
     box = box.astype(np.float32) - 1
     box[2] += box[0]  #convert width to xmax
@@ -64,6 +138,65 @@ def get_frame_level_annos_ucf24(annotations, numf, num_classes, counts=None):
                 counts[label,1] += 1
         
     return frame_level_annos, counts
+
+
+def get_frame_level_annos_ava(annotations, numf, num_classes, class_ids_map, counts=None, split='val'):
+    frame_level_annos = [ {'labeled':False,'ego_label':-1,'boxes':[],'labels':[]} for _ in range(numf)]
+    
+    keyframes = []
+    skip_count = 0
+    timestamps = [ str(i) for i in range(902, 1799)]
+
+    if split == 'train':
+        timestamps = [ts for ts in annotations]
+
+    for ts in timestamps:
+        boxes = {}
+        time_stamp = int(ts)
+        frame_num = int((time_stamp - 900) * 30 + 1)
+        
+        if ts in annotations:
+            # pdb.set_trace()
+            assert time_stamp == int(annotations[ts][0][0])
+            
+            for anno in annotations[ts]:
+                box_key = '_'.join('{:0.3f}'.format(b) for b in anno[1])
+                assert 80>=anno[2]>=1, 'label should be between 1 and 80 but it is {} '.format(anno[2])
+                if anno[2] not in class_ids_map:
+                    skip_count += 1
+                    continue
+
+                class_id = class_ids_map[anno[2]]['used_id']
+                # print(class_id)
+                if box_key not in boxes:
+                    boxes[box_key] = {'box':anno[1], 'labels':np.zeros(num_classes)}
+
+                boxes[box_key]['labels'][class_id+1] = 1
+                boxes[box_key]['labels'][0] = 1
+                counts[class_id,1] += 1
+            
+            new_boxes = []
+            labels = []
+            for box_key in boxes:
+                new_boxes.append(boxes[box_key]['box'])
+                labels.append(boxes[box_key]['labels'])
+            
+            if len(new_boxes):
+                new_boxes = np.asarray(new_boxes)
+                frame_level_annos[frame_num]['boxes'] = new_boxes
+
+                labels = np.asarray(labels)
+                frame_level_annos[frame_num]['labels'] = labels
+
+                frame_level_annos[frame_num]['labeled'] = True
+                frame_level_annos[frame_num]['ego_label'] = 1
+
+
+        keyframes.append(frame_num)
+        if not frame_level_annos[frame_num]['labeled']:
+            frame_level_annos[frame_num]['ego_label'] = 0
+
+    return frame_level_annos, counts, keyframes, skip_count
 
 
 def get_filtered_tubes_ucf24(annotations):
@@ -243,8 +376,11 @@ class VideoDataset(tutils.data.Dataset):
         self.input_type = input_type+'-images'
         self.train = train
         self.root = args.DATA_ROOT + args.DATASET + '/'
-        
         self._imgpath = os.path.join(self.root, self.input_type)
+        self.anno_root = self.root
+        if len(args.ANNO_ROOT)>1:
+            self.anno_root = args.ANNO_ROOT 
+
         # self.image_sets = image_sets
         self.transform = transform
         self.ids = list()
@@ -252,13 +388,100 @@ class VideoDataset(tutils.data.Dataset):
             self._make_lists_road()  
         elif self.DATASET == 'ucf24':
             self._make_lists_ucf24() 
+        elif self.DATASET == 'ava':
+            self._make_lists_ava() 
+        else:
+            raise Exception('Specfiy corect dataset')
+        
         self.num_label_types = len(self.label_types)
 
 
+
+    def _make_lists_ava(self):
+
+        assert len(self.SUBSETS) == 1
+
+        self.anno_file  = os.path.join(self.anno_root, 'ava_{}.csv'.format(self.SUBSETS[0]))
+        
+        annotations = read_ava_annotations(self.anno_file)
+        print(self.anno_file, self.anno_root)
+        labelmap_file = os.path.join(self.anno_root, 'ava_actions.pbtxt')
+        class_names, class_ids_map, _ = read_labelmap(labelmap_file)
+
+        
+        self.label_types =  ['action_ness', 'actions'] #
+        num_action_classes = len(class_names)
+        self.num_classes_list = [1, num_action_classes]
+        self.num_classes = 1 + num_action_classes # one for action_ness
+        
+        self.ego_classes = ['Non_action', 'action']
+        self.num_ego_classes = len(self.ego_classes)
+        
+        counts = np.zeros((num_action_classes, 2), dtype=np.int32)
+    
+        # ratios = [1.0, 1.1, 1.1, 0.9, 1.1, 0.8, 0.7, 0.8, 1.1, 1.4, 1.0, 0.8, 0.7, 1.2, 1.0, 0.8, 0.7, 1.2, 1.2, 1.0, 0.9]
+    
+        self.video_list = []
+        self.numf_list = []
+        
+        frame_level_list = []
+
+        default_ego_label = np.zeros(self.num_ego_classes)
+        default_ego_label[0] = 1
+        total_labeled_frame = 0
+        total_num_frames = 0
+        for vid, video_name in enumerate(annotations):
+            # if vid>1:
+                # continue
+
+            self.numf_list.append(27029)
+            self.video_list.append(video_name)
+
+            numf = 27029
+            frame_level_annos, counts, keyframes, skip_count = get_frame_level_annos_ava(annotations[video_name], numf, self.num_classes, class_ids_map, counts=counts, split=self.SUBSETS[0])
+
+            # print('Skipped are skip_count', skip_count, video_name)
+
+            total_labeled_frame += len(keyframes)
+            total_num_frames += numf
+
+            frame_level_list.append(frame_level_annos)  
+
+            start_frames = [kf - self.MAX_SEQ_STEP*self.SEQ_LEN//2 for kf in keyframes]
+
+            # make ids
+            # start_frames = [ f for f in range(numf-self.MIN_SEQ_STEP*self.SEQ_LEN, -1,  -self.skip_step)]
+            # if self.full_test and 0 not in start_frames:
+            # start_frames.append(0)
+            # logger.info('number of start frames: '+ str(len(start_frames)))
+
+            for frame_num, kf in zip(start_frames, keyframes):
+                self.ids.append([vid, frame_num, self.MAX_SEQ_STEP, kf])
+
+
+        logger.info('Labeled frames {:d}/{:d}'.format(total_labeled_frame, total_num_frames))
+        # pdb.set_trace()
+        ptrstr = '\n'
+        self.frame_level_list = frame_level_list
+        self.all_classes = [['action_ness'], class_names.copy()]
+        for k, name in enumerate(self.label_types):
+            if len(self.all_classes[k])>0:
+                labels = self.all_classes[k]
+                # self.num_classes_list.append(len(labels))
+                for c, cls_ in enumerate(labels): # just to see the distribution of train and test sets
+                    ptrstr += '-'.join(self.SUBSETS) + ' {:05d} label: ind={:02d} name:{:s}\n'.format(
+                                                    counts[c,k] , c, cls_)
+        
+        ptrstr += 'Number of ids are {:d}\n'.format(len(self.ids))
+        ptrstr += 'Labeled frames {:d}/{:d}'.format(total_labeled_frame, total_num_frames)
+        self.childs = {}
+        self.num_videos = len(self.video_list)
+        self.print_str = ptrstr
+        
+
     def _make_lists_ucf24(self):
 
-        self.anno_file  = os.path.join(self.root, 'pyannot_with_class_names.pkl')
-        
+        self.anno_file  = os.path.join(self.anno_root, 'pyannot_with_class_names.pkl')
 
         with open(self.anno_file,'rb') as fff:
             final_annots = pickle.load(fff)
@@ -350,7 +573,7 @@ class VideoDataset(tutils.data.Dataset):
         self.num_videos = len(self.video_list)
         self.print_str = ptrstr
         
-        
+    
     def _make_lists_road(self):
 
         self.anno_file  = os.path.join(self.root, 'road_trainval_v1.0.json')
@@ -382,7 +605,6 @@ class VideoDataset(tutils.data.Dataset):
         frame_level_list = []
 
         for videoname in sorted(database.keys()):
-            
             if not is_part_of_subsets(final_annots['db'][videoname]['split_ids'], self.SUBSETS):
                 continue
             
@@ -488,7 +710,10 @@ class VideoDataset(tutils.data.Dataset):
 
     def __getitem__(self, index):
         id_info = self.ids[index]
-        video_id, start_frame, step_size = id_info
+        if self.DATASET == 'ava':
+            video_id, start_frame, step_size, keyframe = id_info
+        else:
+            video_id, start_frame, step_size = id_info
         videoname = self.video_list[video_id]
         images = []
         frame_num = start_frame
@@ -497,10 +722,14 @@ class VideoDataset(tutils.data.Dataset):
         labels = []
         ego_labels = []
         mask = np.zeros(self.SEQ_LEN, dtype=np.int)
-        # indexs = []
+        indexs = []
         for i in range(self.SEQ_LEN):
-            
-            img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num+1)
+            indexs.append(frame_num)
+            if self.DATASET != 'ava':
+                img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num)
+                # img_name = self._imgpath + '/{:s}/img_{:05d}.jpg'.format(videoname, frame_num)
+            elif self.DATASET == 'ava':
+                img_name = self._imgpath + '/{:s}/{:s}_{:06d}.jpg'.format(videoname, videoname, frame_num)
 
             img = Image.open(img_name).convert('RGB')
             images.append(img)
@@ -514,7 +743,9 @@ class VideoDataset(tutils.data.Dataset):
                 labels.append(np.asarray([]))
                 ego_labels.append(-1)            
             frame_num += step_size
-
+        
+        if self.DATASET == 'ava':
+            assert keyframe in indexs, ' keyframe is not in frame {} from startframe {} and stepsize of {}'.format(keyframe, start_frame, step_size)
         clip = self.transform(images)
         height, width = clip.shape[-2:]
         wh = [height, width]

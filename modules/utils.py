@@ -8,6 +8,8 @@ from modules.box_utils import nms
 import datetime
 import logging 
 import torch
+import pdb
+import torchvision
 
 # from https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/modeling/rpn/anchor_generator.py
 class BufferList(torch.nn.Module):
@@ -233,6 +235,8 @@ def filter_detections_for_dumping(args, scores, decoded_boxes_batch, confidences
      
     max_k = min(args.GEN_TOPK*500, scores.shape[0])
     ids, counts = nms(boxes, scores, args.GEN_NMS, max_k)  # idsn - ids after nms
+    # keepids = torchvision.ops.nms(boxes, scores, args.GEN_NMS)
+    # pdb.set_trace()
     scores = scores[ids[:min(args.GEN_TOPK,counts)]].cpu().numpy()
     boxes = boxes[ids[:min(args.GEN_TOPK,counts)],:].cpu().numpy()
     confidences = confidences[ids[:min(args.GEN_TOPK, counts)],:].cpu().numpy()
