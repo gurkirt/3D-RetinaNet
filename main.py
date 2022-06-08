@@ -72,7 +72,7 @@ def main():
     parser.add_argument('--TEST_BATCH_SIZE', default=1, 
                         type=int, help='Batch size for testing')
     # Number of worker to load data in parllel
-    parser.add_argument('--NUM_WORKERS', '-j', default=0, 
+    parser.add_argument('--NUM_WORKERS', '-j', default=8, 
                         type=int, help='Number of workers used in dataloading')
     # optimiser hyperparameters
     parser.add_argument('--OPTIM', default='SGD', 
