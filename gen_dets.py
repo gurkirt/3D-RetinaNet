@@ -1,6 +1,8 @@
 
 """ 
+
  Testing 
+
 """
 
 import os
@@ -115,6 +117,9 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
             confidence = activation(confidence)
             seq_len = ego_preds.shape[1]
             
+            if val_itr == 5:
+                os.system("nvidia-smi")
+
             if print_time and val_itr%val_step == 0:
                 torch.cuda.synchronize()
                 tf = time.perf_counter()
@@ -172,7 +177,8 @@ def perform_detection(args, net,  val_data_loader, val_dataset, iteration):
                         with open(save_name,'wb') as ff:
                             pickle.dump(save_data, ff)
                     
-                    startf += step_size
+                    if args.DATASET == 'ava':
+                        startf += step_size
 
             if print_time and val_itr%val_step == 0:
                 torch.cuda.synchronize()

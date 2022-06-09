@@ -727,7 +727,7 @@ class VideoDataset(tutils.data.Dataset):
             indexs.append(frame_num)
             if self.DATASET != 'ava':
                 img_name = self._imgpath + '/{:s}/{:05d}.jpg'.format(videoname, frame_num)
-                # img_name = self._imgpath + '/{:s}/img_{:05d}.jpg'.format(videoname, frame_num)
+                img_name = self._imgpath + '/{:s}/img_{:05d}.jpg'.format(videoname, frame_num)
             elif self.DATASET == 'ava':
                 img_name = self._imgpath + '/{:s}/{:s}_{:06d}.jpg'.format(videoname, videoname, frame_num)
 
