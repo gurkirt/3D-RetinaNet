@@ -490,7 +490,7 @@ class VideoDataset(tutils.data.Dataset):
         self.trainvideos = final_annots['trainvideos']
         ucf_classes = final_annots['classes']
         self.label_types =  ['action_ness', 'action'] #
-        
+        # pdb.set_trace()
         self.num_classes_list = [1, 24]
         self.num_classes = 25 # one for action_ness
         
@@ -510,8 +510,8 @@ class VideoDataset(tutils.data.Dataset):
         default_ego_label[0] = 1
         total_labeled_frame = 0
         total_num_frames = 0
-        for videoname in sorted(database.keys()):
-            
+
+        for videoname in sorted(database.keys()):    
             is_part = 1
             if 'train' in self.SUBSETS and videoname not in self.trainvideos:
                 continue
