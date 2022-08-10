@@ -5,3 +5,5 @@ wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&conf
 rm cookies.txt
 wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1ZpbvJzvnDxJmKCFTs9wKmmA2qvm2aFBX' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1ZpbvJzvnDxJmKCFTs9wKmmA2qvm2aFBX" -O resnet50I3D.pth
 rm cookies.txt
+wget --load-cookies cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1OyCpQWnHOWL4WT9Bvic3iqyHl48o0R_R' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1OyCpQWnHOWL4WT9Bvic3iqyHl48o0R_R" -O resnet50I3D.pth
+rm cookies.txt
